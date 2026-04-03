@@ -1,0 +1,42 @@
+{
+  "fill" : {
+    "automatic-gradient" : "display-p3:0.75005,0.75005,0.75005,1.00000"
+  },
+  "groups" : [
+    {
+      "blur-material" : 0.5,
+      "hidden" : false,
+      "layers" : [
+        {
+          "glass" : false,
+          "hidden" : false,
+          "image-name" : "appicon.svg",
+          "name" : "appicon",
+          "position" : {
+            "scale" : 1,
+            "translation-in-points" : [
+              -1.6594850000000179,
+              -3.6328125
+            ]
+          }
+        }
+      ],
+      "lighting" : "combined",
+      "shadow" : {
+        "kind" : "neutral",
+        "opacity" : 0.5
+      },
+      "specular" : true,
+      "translucency" : {
+        "enabled" : true,
+        "value" : 0.5
+      }
+    }
+  ],
+  "supported-platforms" : {
+    "circles" : [
+      "watchOS"
+    ],
+    "squares" : "shared"
+  }
+}
