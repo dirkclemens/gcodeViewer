@@ -3,7 +3,7 @@ import UniformTypeIdentifiers
 
 struct ContentView: View {
 
-    @StateObject private var state = AppState()
+    @ObservedObject var state: AppState
     @State private var showFileImporter = false
     @State private var resetCamera = false
 
@@ -190,8 +190,4 @@ struct ContentView: View {
     private var gcodeUTType: UTType {
         UTType(filenameExtension: "gcode") ?? .data
     }
-}
-
-#Preview {
-    ContentView()
 }

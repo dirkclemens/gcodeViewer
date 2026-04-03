@@ -188,7 +188,7 @@ final class GCodeSCNView: SCNView {
                                    -Float.greatestFiniteMagnitude,
                                    -Float.greatestFiniteMagnitude)
         for node in scene.rootNode.childNodes {
-            guard node.geometry != nil else { continue }
+            guard node.geometry != nil, node.name != "grid" else { continue }
             let (mn, mx) = node.boundingBox
             let corners: [SCNVector3] = [
                 SCNVector3(mn.x, mn.y, mn.z), SCNVector3(mx.x, mn.y, mn.z),
@@ -305,7 +305,7 @@ struct SceneKitView: NSViewRepresentable {
                                    -Float.greatestFiniteMagnitude)
 
         for node in scene.rootNode.childNodes {
-            guard node.geometry != nil else { continue }
+            guard node.geometry != nil, node.name != "grid" else { continue }
             // convertPosition maps local-space corners to world space,
             // correctly accounting for the node's position and pivot.
             let (mn, mx) = node.boundingBox

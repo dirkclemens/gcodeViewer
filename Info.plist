@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+
+    <!-- ── App metadata (replaces GENERATE_INFOPLIST_FILE keys) ──────────── -->
+    <key>CFBundleName</key>
+    <string>$(PRODUCT_NAME)</string>
+    <key>CFBundleDisplayName</key>
+    <string>GCode Viewer</string>
+    <key>CFBundleIdentifier</key>
+    <string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+    <key>CFBundleVersion</key>
+    <string>$(CURRENT_PROJECT_VERSION)</string>
+    <key>CFBundleShortVersionString</key>
+    <string>$(MARKETING_VERSION)</string>
+    <key>CFBundleExecutable</key>
+    <string>$(EXECUTABLE_NAME)</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleIconName</key>
+    <string>AppIcon</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>$(MACOSX_DEPLOYMENT_TARGET)</string>
+    <key>NSHumanReadableCopyright</key>
+    <string></string>
+    <key>NSPrincipalClass</key>
+    <string>NSApplication</string>
+
+    <!-- ── Exported UTType: de.adcore.gcode ──────────────────────────────── -->
+    <!--
+        We *export* (own) this type because .gcode is not registered by Apple.
+        Any other app that imports "de.adcore.gcode" will also recognise these files.
+    -->
+    <key>UTExportedTypeDeclarations</key>
+    <array>
+        <dict>
+            <key>UTTypeIdentifier</key>
+            <string>de.adcore.gcode</string>
+            <key>UTTypeDescription</key>
+            <string>G-Code File</string>
+            <key>UTTypeConformsTo</key>
+            <array>
+                <string>public.plain-text</string>
+            </array>
+            <key>UTTypeTagSpecification</key>
+            <dict>
+                <key>public.filename-extension</key>
+                <array>
+                    <string>gcode</string>
+                    <string>gc</string>
+                    <string>g</string>
+                </array>
+                <key>public.mime-type</key>
+                <string>text/x-gcode</string>
+            </dict>
+        </dict>
+    </array>
+
+    <!-- ── Document type: tells Finder this app opens .gcode files ───────── -->
+    <key>CFBundleDocumentTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleTypeName</key>
+            <string>G-Code File</string>
+            <key>LSItemContentTypes</key>
+            <array>
+                <string>de.adcore.gcode</string>
+            </array>
+            <!-- LSHandlerRank = Owner means we are the default app for this type -->
+            <key>LSHandlerRank</key>
+            <string>Owner</string>
+            <key>CFBundleTypeRole</key>
+            <string>Viewer</string>
+            <key>CFBundleTypeIconSystemName</key>
+            <string>doc.text</string>
+        </dict>
+    </array>
+
+</dict>
+</plist>

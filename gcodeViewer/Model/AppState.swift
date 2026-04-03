@@ -43,6 +43,13 @@ final class AppState: ObservableObject {
         scene = nil
 
         Task { [self] in
+            // Acquire sandbox access. URLs from application(_:open:) and from
+            // security-scoped bookmarks require this; NSOpenPanel/fileImporter
+            // URLs also accept it safely (startAccessing returns false but that
+            // is harmless — we still stop in the defer).
+            let accessing = url.startAccessingSecurityScopedResource()
+            defer { if accessing { url.stopAccessingSecurityScopedResource() } }
+
             do {
                 loadingPhase = "Parsing G-code…"
                 let moves = try await GCodeParser.parse(url: url) { p in
@@ -71,8 +78,11 @@ final class AppState: ObservableObject {
 
                 let newScene = SCNScene()
                 let node = SCNNode(geometry: geometry)
-                // Centre the model at origin for nicer default camera framing
+
+                // Read XY extents before applying the pivot so we have raw print-space coords.
                 let (minB, maxB) = node.boundingBox
+
+                // Centre the model at origin for nicer default camera framing.
                 let centre = SCNVector3(
                     (minB.x + maxB.x) / 2,
                     (minB.y + maxB.y) / 2,
@@ -80,6 +90,20 @@ final class AppState: ObservableObject {
                 )
                 node.pivot = SCNMatrix4MakeTranslation(centre.x, centre.y, centre.z)
                 newScene.rootNode.addChildNode(node)
+
+                // Add the grid at Z = 0.  Because the mesh node is centred around
+                // the XY midpoint via its pivot, we need to shift the grid by the
+                // same XY offset so it still aligns with the object footprint.
+                let gridNode = GridBuilder.build(
+                    minX: Float(minB.x - centre.x),
+                    maxX: Float(maxB.x - centre.x),
+                    minY: Float(minB.y - centre.y),
+                    maxY: Float(maxB.y - centre.y)
+                )
+                // The grid sits at the bottom face of the object (minB.z shifted by pivot).
+                gridNode.position = SCNVector3(0, 0, minB.z - centre.z)
+                newScene.rootNode.addChildNode(gridNode)
+
                 scene = newScene
 
             } catch {
@@ -93,6 +117,9 @@ final class AppState: ObservableObject {
     func recolour() {
         guard let scene else { return }
         let nsColor = NSColor(objectColor)
-        scene.rootNode.childNodes.first?.geometry?.materials.first?.diffuse.contents = nsColor
+        // Target the mesh node specifically (not the grid node).
+        for node in scene.rootNode.childNodes where node.name != "grid" {
+            node.geometry?.materials.first?.diffuse.contents = nsColor
+        }
     }
 }

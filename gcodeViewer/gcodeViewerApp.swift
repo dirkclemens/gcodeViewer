@@ -8,7 +8,7 @@ struct gcodeViewerApp: App {
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            ContentView(state: appDelegate.appState)
                 .onAppear {
                     // Restore window frame after the window is on screen.
                     AppDelegate.restoreWindowFrame()
@@ -19,6 +19,8 @@ struct gcodeViewerApp: App {
         .commands {
             // Remove the default "New Window" menu item — this is a single-document viewer
             CommandGroup(replacing: .newItem) { }
+            // Replaces the standard text editing menu with nothing, effectively removing Cut/Copy/Paste from the Edit menu.
+            CommandGroup(replacing: .textEditing) { }
         }
     }
 }
@@ -26,6 +28,9 @@ struct gcodeViewerApp: App {
 // MARK: - AppDelegate
 
 final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
+
+    /// Single AppState instance shared with ContentView.
+    let appState: AppState = AppState()
 
     private static let frameKey = "windowFrame"
 
@@ -37,6 +42,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         DispatchQueue.main.async {
             NSApp.mainWindow?.delegate = self
         }
+    }
+
+    /// Called by macOS when the user opens a file via Finder "Open With",
+    /// drags a file onto the Dock icon, or uses File › Open Recent.
+    func application(_ application: NSApplication, open urls: [URL]) {
+        guard let url = urls.first(where: { $0.pathExtension.lowercased() == "gcode" }) else { return }
+        appState.load(url: url)
     }
 
     // MARK: NSWindowDelegate — save on every move or resize
