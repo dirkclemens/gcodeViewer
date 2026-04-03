@@ -7,7 +7,25 @@
 		<key>gcodeViewer.xcscheme_^#shared#^_</key>
 		<dict>
 			<key>orderHint</key>
+			<integer>1</integer>
+		</dict>
+		<key>gcodeViewerQL.xcscheme_^#shared#^_</key>
+		<dict>
+			<key>orderHint</key>
 			<integer>0</integer>
+		</dict>
+	</dict>
+	<key>SuppressBuildableAutocreation</key>
+	<dict>
+		<key>437B77BE2F7F914E00888191</key>
+		<dict>
+			<key>primary</key>
+			<true/>
+		</dict>
+		<key>437B785F2F7FE75700888191</key>
+		<dict>
+			<key>primary</key>
+			<true/>
 		</dict>
 	</dict>
 </dict>

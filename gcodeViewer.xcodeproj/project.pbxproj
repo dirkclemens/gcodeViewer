@@ -7,18 +7,70 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-
-
+		437B78632F7FE75800888191 /* Quartz.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 437B78622F7FE75700888191 /* Quartz.framework */; };
+		437B786F2F7FE75800888191 /* gcodeViewerQL.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 437B78602F7FE75700888191 /* gcodeViewerQL.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		437B787F2F7FE85900888191 /* GCodeSnapshotRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 437B78792F7FE85900888191 /* GCodeSnapshotRenderer.swift */; };
+		437B78802F7FE85900888191 /* PreviewProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 437B787A2F7FE85900888191 /* PreviewProvider.swift */; };
+		437B78C92F7FE94A00888191 /* SceneKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 437B78C82F7FE94A00888191 /* SceneKit.framework */; };
+		437B78CB2F7FE95300888191 /* Metal.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 437B78CA2F7FE95300888191 /* Metal.framework */; };
+		437B78CD2F7FE95E00888191 /* QuickLookUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 437B78CC2F7FE95E00888191 /* QuickLookUI.framework */; };
 /* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		437B786D2F7FE75800888191 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 437B77B72F7F914E00888191 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 437B785F2F7FE75700888191;
+			remoteInfo = gcodeViewerQL;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		437B78702F7FE75800888191 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				437B786F2F7FE75800888191 /* gcodeViewerQL.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		437B77BF2F7F914E00888191 /* gcodeViewer.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = gcodeViewer.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		437B78212F7FDD5200888191 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		437B78602F7FE75700888191 /* gcodeViewerQL.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = gcodeViewerQL.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		437B78622F7FE75700888191 /* Quartz.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Quartz.framework; path = System/Library/Frameworks/Quartz.framework; sourceTree = SDKROOT; };
+		437B78792F7FE85900888191 /* GCodeSnapshotRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GCodeSnapshotRenderer.swift; sourceTree = "<group>"; };
+		437B787A2F7FE85900888191 /* PreviewProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreviewProvider.swift; sourceTree = "<group>"; };
+		437B78C82F7FE94A00888191 /* SceneKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SceneKit.framework; path = System/Library/Frameworks/SceneKit.framework; sourceTree = SDKROOT; };
+		437B78CA2F7FE95300888191 /* Metal.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Metal.framework; path = System/Library/Frameworks/Metal.framework; sourceTree = SDKROOT; };
+		437B78CC2F7FE95E00888191 /* QuickLookUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = QuickLookUI.framework; path = System/Library/Frameworks/QuickLookUI.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		437B78852F7FE88900888191 /* Exceptions for "gcodeViewer" folder in "gcodeViewerQL" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Geometry/MeshBuilder.swift,
+				Geometry/SurfaceExtractor.swift,
+				Model/Move.swift,
+				Parser/GCodeParser.swift,
+			);
+			target = 437B785F2F7FE75700888191 /* gcodeViewerQL */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		437B77C12F7F914E00888191 /* gcodeViewer */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				437B78852F7FE88900888191 /* Exceptions for "gcodeViewer" folder in "gcodeViewerQL" target */,
+			);
 			path = gcodeViewer;
 			sourceTree = "<group>";
 		};
@@ -32,6 +84,17 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		437B785D2F7FE75700888191 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				437B78CD2F7FE95E00888191 /* QuickLookUI.framework in Frameworks */,
+				437B78CB2F7FE95300888191 /* Metal.framework in Frameworks */,
+				437B78C92F7FE94A00888191 /* SceneKit.framework in Frameworks */,
+				437B78632F7FE75800888191 /* Quartz.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -40,7 +103,9 @@
 			children = (
 				437B78212F7FDD5200888191 /* Info.plist */,
 				437B77C12F7F914E00888191 /* gcodeViewer */,
+				437B78612F7FE75700888191 /* Frameworks */,
 				437B77C02F7F914E00888191 /* Products */,
+				437B787D2F7FE85900888191 /* gcodeViewerQL */,
 			);
 			sourceTree = "<group>";
 		};
@@ -48,8 +113,29 @@
 			isa = PBXGroup;
 			children = (
 				437B77BF2F7F914E00888191 /* gcodeViewer.app */,
+				437B78602F7FE75700888191 /* gcodeViewerQL.appex */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		437B78612F7FE75700888191 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				437B78CC2F7FE95E00888191 /* QuickLookUI.framework */,
+				437B78CA2F7FE95300888191 /* Metal.framework */,
+				437B78C82F7FE94A00888191 /* SceneKit.framework */,
+				437B78622F7FE75700888191 /* Quartz.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		437B787D2F7FE85900888191 /* gcodeViewerQL */ = {
+			isa = PBXGroup;
+			children = (
+				437B78792F7FE85900888191 /* GCodeSnapshotRenderer.swift */,
+				437B787A2F7FE85900888191 /* PreviewProvider.swift */,
+			);
+			path = gcodeViewerQL;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -62,10 +148,12 @@
 				437B77BB2F7F914E00888191 /* Sources */,
 				437B77BC2F7F914E00888191 /* Frameworks */,
 				437B77BD2F7F914E00888191 /* Resources */,
+				437B78702F7FE75800888191 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				437B786E2F7FE75800888191 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				437B77C12F7F914E00888191 /* gcodeViewer */,
@@ -76,6 +164,25 @@
 			productName = gcodeViewer;
 			productReference = 437B77BF2F7F914E00888191 /* gcodeViewer.app */;
 			productType = "com.apple.product-type.application";
+		};
+		437B785F2F7FE75700888191 /* gcodeViewerQL */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 437B78742F7FE75800888191 /* Build configuration list for PBXNativeTarget "gcodeViewerQL" */;
+			buildPhases = (
+				437B785C2F7FE75700888191 /* Sources */,
+				437B785D2F7FE75700888191 /* Frameworks */,
+				437B785E2F7FE75700888191 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = gcodeViewerQL;
+			packageProductDependencies = (
+			);
+			productName = gcodeViewerQL;
+			productReference = 437B78602F7FE75700888191 /* gcodeViewerQL.appex */;
+			productType = "com.apple.product-type.app-extension";
 		};
 /* End PBXNativeTarget section */
 
@@ -88,6 +195,9 @@
 				LastUpgradeCheck = 2640;
 				TargetAttributes = {
 					437B77BE2F7F914E00888191 = {
+						CreatedOnToolsVersion = 26.4;
+					};
+					437B785F2F7FE75700888191 = {
 						CreatedOnToolsVersion = 26.4;
 					};
 				};
@@ -107,6 +217,7 @@
 			projectRoot = "";
 			targets = (
 				437B77BE2F7F914E00888191 /* gcodeViewer */,
+				437B785F2F7FE75700888191 /* gcodeViewerQL */,
 			);
 		};
 /* End PBXProject section */
@@ -116,7 +227,13 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		437B785E2F7FE75700888191 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -130,7 +247,24 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		437B785C2F7FE75700888191 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				437B787F2F7FE85900888191 /* GCodeSnapshotRenderer.swift in Sources */,
+				437B78802F7FE85900888191 /* PreviewProvider.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		437B786E2F7FE75800888191 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 437B785F2F7FE75700888191 /* gcodeViewerQL */;
+			targetProxy = 437B786D2F7FE75800888191 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		437B77C82F7F915000888191 /* Debug */ = {
@@ -337,6 +471,64 @@
 			};
 			name = Release;
 		};
+		437B78712F7FE75800888191 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = BXZ479CGUZ;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_USER_SELECTED_FILES = readonly;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = gcodeViewerQL/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@executable_path/../../../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = de.adcore.gcodeViewer.gcodeViewerQL;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		437B78722F7FE75800888191 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = BXZ479CGUZ;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_USER_SELECTED_FILES = readonly;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = gcodeViewerQL/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@executable_path/../../../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = de.adcore.gcodeViewer.gcodeViewerQL;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -354,6 +546,15 @@
 			buildConfigurations = (
 				437B77CB2F7F915000888191 /* Debug */,
 				437B77CC2F7F915000888191 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		437B78742F7FE75800888191 /* Build configuration list for PBXNativeTarget "gcodeViewerQL" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				437B78712F7FE75800888191 /* Debug */,
+				437B78722F7FE75800888191 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

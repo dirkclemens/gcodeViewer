@@ -29,8 +29,7 @@
 
     <!-- ── Exported UTType: de.adcore.gcode ──────────────────────────────── -->
     <!--
-        We *export* (own) this type because .gcode is not registered by Apple.
-        Any other app that imports "de.adcore.gcode" will also recognise these files.
+        We *export* our own type for systems that have no other .gcode handler.
     -->
     <key>UTExportedTypeDeclarations</key>
     <array>
@@ -57,6 +56,35 @@
         </dict>
     </array>
 
+    <!-- ── Imported UTType: com.pleasantsoftware.uti.gcode ───────────────── -->
+    <!--
+        Pleasant3D (and possibly other slicers) export this type for .gcode files.
+        By importing it we acknowledge it exists and list it in our document types
+        so that files already tagged with it are also opened by us.
+    -->
+    <key>UTImportedTypeDeclarations</key>
+    <array>
+        <dict>
+            <key>UTTypeIdentifier</key>
+            <string>com.pleasantsoftware.uti.gcode</string>
+            <key>UTTypeDescription</key>
+            <string>G-Code File</string>
+            <key>UTTypeConformsTo</key>
+            <array>
+                <string>public.plain-text</string>
+            </array>
+            <key>UTTypeTagSpecification</key>
+            <dict>
+                <key>public.filename-extension</key>
+                <array>
+                    <string>gcode</string>
+                    <string>gc</string>
+                    <string>g</string>
+                </array>
+            </dict>
+        </dict>
+    </array>
+
     <!-- ── Document type: tells Finder this app opens .gcode files ───────── -->
     <key>CFBundleDocumentTypes</key>
     <array>
@@ -66,6 +94,7 @@
             <key>LSItemContentTypes</key>
             <array>
                 <string>de.adcore.gcode</string>
+                <string>com.pleasantsoftware.uti.gcode</string>
             </array>
             <!-- LSHandlerRank = Owner means we are the default app for this type -->
             <key>LSHandlerRank</key>

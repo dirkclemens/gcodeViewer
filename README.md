@@ -7,14 +7,16 @@ A native macOS application that parses `.gcode` files and renders an interactive
 ## Features
 
 - **Surface-only rendering** — voxel shell extraction hides all internal structure; only the outer surface is displayed
+- **Quick Look preview** — thumbnail and preview of `.gcode` files directly in Finder, without opening the app
 - **Interactive 3D viewport** — orbit, pan, zoom, and dolly with mouse or trackpad
 - **Industry-standard camera controls** — familiar shortcuts for 3D artists and engineers
 - **Adjustable voxel resolution** — trade detail for speed with a live slider (0.2–1.5 mm)
 - **Colour picker** — change the object colour without re-processing the file
 - **Drag & drop** — drop a `.gcode` file directly onto the window
+- **Open With / Finder integration** — registered as a viewer for `.gcode` files system-wide
 - **Async processing pipeline** — UI stays responsive while large files load
 - **Persistent settings** — voxel size, object colour, and window position/size are remembered across launches
-- **No dependencies** — pure Apple frameworks only (SwiftUI, SceneKit, simd)
+- **No dependencies** — pure Apple frameworks only (SwiftUI, SceneKit, Metal, simd)
 
 ## Requirements
 
@@ -89,11 +91,21 @@ The voxel approach requires no knowledge of slicer-specific print strategies. An
 
 Header moves (before the last `G92 E0` reset) are suppressed to avoid spurious geometry from the slicer preamble.
 
+## Quick Look Extension
+
+The app ships a Quick Look extension (`gcodeViewerQL`) that renders a 3D snapshot of any `.gcode` file directly in Finder — no need to open the app.
+
+The extension runs in a sandboxed XPC process and uses an offscreen Metal/SceneKit renderer to produce a static PNG preview at 2× resolution. Voxel size is fixed at 1 mm for fast generation.
+
+### UTType note
+
+`.gcode` is not an Apple-defined type. Some applications (e.g. Pleasant3D) register `com.pleasantsoftware.uti.gcode` for this extension. This app declares both its own `de.adcore.gcode` type and imports `com.pleasantsoftware.uti.gcode`, so Quick Look previews and Finder integration work regardless of which app registered the type first.
+
 ## Project Structure
 
 ```
 gcodeViewer/
-├── gcodeViewerApp.swift          # @main entry point, window frame persistence
+├── gcodeViewerApp.swift          # @main entry point, AppDelegate, window frame persistence
 ├── ContentView.swift             # Root SwiftUI view, toolbar, drag & drop
 ├── Model/
 │   ├── AppState.swift            # ObservableObject driving the load pipeline
@@ -103,9 +115,15 @@ gcodeViewer/
 │   └── GCodeParser.swift         # Streaming G-code parser → [Move]
 ├── Geometry/
 │   ├── SurfaceExtractor.swift    # Voxel fill + surface shell extraction
-│   └── MeshBuilder.swift         # SCNGeometry builder
+│   ├── MeshBuilder.swift         # SCNGeometry builder
+│   └── GridBuilder.swift         # Reference grid at Z = 0
 └── Views/
-    └── SceneKitView.swift        # NSViewRepresentable SCNView wrapper
+    └── SceneKitView.swift        # GCodeSCNView subclass + SwiftUI wrapper
+
+gcodeViewerQL/
+├── PreviewProvider.swift         # QLPreviewingController — parse → voxelise → render → PNG
+├── GCodeSnapshotRenderer.swift   # Offscreen Metal/SceneKit → NSImage
+└── Info.plist                    # Extension manifest
 ```
 
 ## Performance

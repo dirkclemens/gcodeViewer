@@ -2,7 +2,6 @@ import SceneKit
 import simd
 
 /// Builds a flat grid node placed at Z = 0 (the print bed plane).
-///#imageLiteral(resourceName: "Bildschirmfoto 2026-04-03 um 13.30.04.png")
 /// The grid is added to the same SCNScene as the mesh, so it
 /// automatically moves, rotates, and pans with the camera alongside
 /// the printed object.
