@@ -1,31 +1,10 @@
 import Foundation
 import simd
 
-/// Streams a G-code file line-by-line and produces an array of Move values.
-///
-/// Handles:
-///  - G0 / G1 linear moves
-///  - G90 / G91 absolute / relative positioning
-///  - G92 position reset
-///  - M82 / M83 absolute / relative extrusion mode
-///  - Inline comments (`;`)
-///  - Both LF and CRLF line endings
-///
-/// Header suppression:
-///  The parser does a single pass. Every time it encounters a bare "G92 E0"
-///  (extruder reset to zero) it discards all moves collected so far and resets
-///  position state. This means that after the loop finishes, `moves` contains
-///  only what was printed after the *last* G92 E0 — which is always the
-///  start-of-print reset that slicers emit immediately before the first layer,
-///  regardless of how many G92 E0 lines appear in the startup script.
 enum GCodeParser {
 
     // MARK: - Public API
 
-    /// Parse a G-code file at `url`.
-    /// - Parameter progressHandler: Called periodically with a value in [0, 1].
-    /// - Returns: Array of Move values (extrusion and travel), starting after
-    ///            the last G92 E0 in the file.
     nonisolated static func parse(
         url: URL,
         progressHandler: @escaping @Sendable (Double) async -> Void
@@ -35,59 +14,53 @@ enum GCodeParser {
         let data = try Data(contentsOf: url, options: .mappedIfSafe)
 
         return await Task.detached(priority: .userInitiated) {
-
             var moves: [Move] = []
             moves.reserveCapacity(100_000)
 
-            // ── Parser state ───────────────────────────────────────────────
             var currentPos      = SIMD3<Float>(0, 0, 0)
             var prevE: Float    = 0
             var eOffset: Float  = 0
             var layerIndex      = 0
+            var lastPrintZ: Float = 0          // only updated on extrusion; detects Z-hop
             var isRelativeMove  = false
             var isRelativeExtr  = false
+            var hasStartedPrinting = false     // true after first extrusion move
             var lineCount       = 0
             var bytesRead       = 0
 
-            let newline  = UInt8(ascii: "\n")
+            let newline   = UInt8(ascii: "\n")
             var lineStart = data.startIndex
 
             while lineStart < data.endIndex {
-
-                // ── Slice one line from the buffer ─────────────────────────
                 let lineEnd  = data[lineStart...].firstIndex(of: newline) ?? data.endIndex
                 let lineData = data[lineStart..<lineEnd]
-                lineStart = lineEnd < data.endIndex
-                    ? data.index(after: lineEnd)
-                    : data.endIndex
-
+                lineStart = lineEnd < data.endIndex ? data.index(after: lineEnd) : data.endIndex
                 bytesRead += lineData.count + 1
                 lineCount += 1
 
                 guard let rawLine = String(bytes: lineData, encoding: .utf8) else { continue }
 
-                // ── Strip inline comment and whitespace ────────────────────
-                let line: String
+                // Strip comment and uppercase the whole line for case-insensitive parsing
+                let stripped: String
                 if let semi = rawLine.firstIndex(of: ";") {
-                    line = String(rawLine[..<semi]).trimmingCharacters(in: .whitespaces)
+                    stripped = String(rawLine[..<semi]).trimmingCharacters(in: .whitespaces)
                 } else {
-                    line = rawLine.trimmingCharacters(in: .whitespacesAndNewlines)
+                    stripped = rawLine.trimmingCharacters(in: .whitespacesAndNewlines)
                 }
-                guard !line.isEmpty else { continue }
+                guard !stripped.isEmpty else { continue }
+                let line = stripped.uppercased()
 
-                // ── Extract command word ───────────────────────────────────
                 let spaceIdx = line.firstIndex(of: " ") ?? line.endIndex
-                let command  = String(line[..<spaceIdx]).uppercased()
+                let command  = String(line[..<spaceIdx])
 
-                // ── Dispatch ───────────────────────────────────────────────
                 switch command {
 
                 case "G28":
-                    // Home: physical position is now (0,0,0).
-                    currentPos = .zero
-                    prevE      = 0
-                    eOffset    = 0
-                    layerIndex = 0
+                    currentPos  = .zero
+                    prevE       = 0
+                    eOffset     = 0
+                    layerIndex  = 0
+                    lastPrintZ  = 0
 
                 case "G90": isRelativeMove = false
                 case "G91": isRelativeMove = true
@@ -95,21 +68,17 @@ enum GCodeParser {
                 case "M83": isRelativeExtr = true
 
                 case "G92":
-                    // G92 E0 — extruder reset.
-                    // If this resets E to zero (the common form), treat it as
-                    // the potential start-of-print marker: flush all moves
-                    // collected so far and reset positional state so the next
-                    // move starts cleanly. Non-E or non-zero G92 just update
-                    // the offset as normal.
                     if let eVal = parseParam("E", from: line) {
-                        if eVal == 0 {
-                            // Discard everything accumulated before this point.
+                        if eVal == 0 && !hasStartedPrinting {
+                            // Preamble reset — discard accumulated travel moves
                             moves.removeAll(keepingCapacity: true)
                             currentPos = .zero
                             prevE      = 0
                             eOffset    = 0
                             layerIndex = 0
+                            lastPrintZ = 0
                         } else {
+                            // Mid-print extruder reset (e.g. Marlin relative-mode reset)
                             eOffset = prevE - eVal
                         }
                     }
@@ -132,13 +101,19 @@ enum GCodeParser {
                     }
                     let newPos = SIMD3<Float>(newX, newY, newZ)
 
-                    if newZ > currentPos.z { layerIndex += 1 }
-
                     var isExtrusion = false
                     if let eVal = eP {
                         let absE = isRelativeExtr ? prevE + eVal : eVal + eOffset
                         if absE > prevE { isExtrusion = true }
                         prevE = absE
+                    }
+
+                    if isExtrusion {
+                        hasStartedPrinting = true
+                        if newZ > lastPrintZ {
+                            layerIndex += 1
+                            lastPrintZ = newZ
+                        }
                     }
 
                     moves.append(Move(
@@ -148,6 +123,49 @@ enum GCodeParser {
                         layerIndex:  layerIndex
                     ))
                     currentPos = newPos
+
+                case "G2", "G3":
+                    let xP = parseParam("X", from: line)
+                    let yP = parseParam("Y", from: line)
+                    let zP = parseParam("Z", from: line)
+                    let iP = parseParam("I", from: line)
+                    let jP = parseParam("J", from: line)
+                    let eP = parseParam("E", from: line)
+
+                    let endX = isRelativeMove ? currentPos.x + (xP ?? 0) : (xP ?? currentPos.x)
+                    let endY = isRelativeMove ? currentPos.y + (yP ?? 0) : (yP ?? currentPos.y)
+                    let endZ = isRelativeMove ? currentPos.z + (zP ?? 0) : (zP ?? currentPos.z)
+                    let endPos = SIMD3<Float>(endX, endY, endZ)
+
+                    var isExtrusion = false
+                    if let eVal = eP {
+                        let absE = isRelativeExtr ? prevE + eVal : eVal + eOffset
+                        if absE > prevE { isExtrusion = true }
+                        prevE = absE
+                    }
+
+                    let cx = currentPos.x + (iP ?? 0)
+                    let cy = currentPos.y + (jP ?? 0)
+
+                    let arcMoves = linearizeArc(
+                        from:        currentPos,
+                        to:          endPos,
+                        center:      SIMD2<Float>(cx, cy),
+                        clockwise:   command == "G2",
+                        isExtrusion: isExtrusion,
+                        layerIndex:  layerIndex
+                    )
+
+                    if isExtrusion {
+                        hasStartedPrinting = true
+                        if endZ > lastPrintZ {
+                            layerIndex += 1
+                            lastPrintZ = endZ
+                        }
+                    }
+
+                    moves.append(contentsOf: arcMoves)
+                    currentPos = endPos
 
                 default:
                     break
@@ -163,10 +181,62 @@ enum GCodeParser {
         }.value
     }
 
-    // MARK: - Private helpers
+    // MARK: - Arc linearization
 
-    /// Extract a named parameter value from a G-code line.
-    /// e.g. `parseParam("X", from: "G1 X10.5 Y3.2")` → `10.5`
+    nonisolated private static func linearizeArc(
+        from:        SIMD3<Float>,
+        to:          SIMD3<Float>,
+        center:      SIMD2<Float>,
+        clockwise:   Bool,
+        isExtrusion: Bool,
+        layerIndex:  Int
+    ) -> [Move] {
+
+        let cx = center.x, cy = center.y
+        let radius = hypot(from.x - cx, from.y - cy)
+        guard radius > 0 else { return [] }
+
+        let startAngle = atan2(from.y - cy, from.x - cx)
+        var endAngle   = atan2(to.y   - cy, to.x   - cx)
+
+        var span: Float
+        if clockwise {
+            if endAngle >= startAngle { endAngle -= 2 * .pi }
+            span = startAngle - endAngle
+        } else {
+            if endAngle <= startAngle { endAngle += 2 * .pi }
+            span = endAngle - startAngle
+        }
+        span = abs(span)
+        guard span > 0 else { return [] }
+
+        let arcLength   = radius * span
+        let numSegments = max(1, Int(arcLength / 0.5))   // ~0.5 mm segments
+        let dz          = (to.z - from.z) / Float(numSegments)
+
+        var result: [Move] = []
+        result.reserveCapacity(numSegments)
+        var prev = from
+
+        for i in 1...numSegments {
+            let t     = Float(i) / Float(numSegments)
+            let angle = clockwise
+                ? startAngle - span * t
+                : startAngle + span * t
+            let next  = SIMD3<Float>(
+                cx + radius * cos(angle),
+                cy + radius * sin(angle),
+                from.z + dz * Float(i)
+            )
+            result.append(Move(from: prev, position: next,
+                               isExtrusion: isExtrusion, layerIndex: layerIndex))
+            prev = next
+        }
+        return result
+    }
+
+    // MARK: - Parameter parsing
+
     nonisolated private static func parseParam(_ letter: Character, from line: String) -> Float? {
         guard let idx = line.firstIndex(of: letter) else { return nil }
         let valueStart = line.index(after: idx)

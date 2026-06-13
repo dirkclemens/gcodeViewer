@@ -34,7 +34,7 @@ class PreviewProvider: QLPreviewProvider, QLPreviewingController {
 
         // ── 3. Build mesh ────────────────────────────────────────────────────
         let geometry = await MeshBuilder.build(
-            surfaceVoxels: voxels,
+            filled: voxels,
             voxelSize: 1.0,
             color: NSColor(red: 0.75, green: 0.75, blue: 0.80, alpha: 1)
         )

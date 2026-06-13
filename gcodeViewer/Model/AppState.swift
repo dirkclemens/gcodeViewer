@@ -56,7 +56,7 @@ final class AppState: ObservableObject {
                     await MainActor.run { self.progress = p * 0.5 }
                 }
 
-                loadingPhase = "Extracting surface…"
+                loadingPhase = "Voxelising…"
                 let voxelSizeCopy = Float(voxelSize)
                 let voxels = await SurfaceExtractor.extract(
                     moves: moves,
@@ -68,7 +68,7 @@ final class AppState: ObservableObject {
                 loadingPhase = "Building mesh…"
                 let nsColor = NSColor(objectColor)
                 let geometry = await MeshBuilder.build(
-                    surfaceVoxels: voxels,
+                    filled: voxels,
                     voxelSize: voxelSizeCopy,
                     color: nsColor
                 )

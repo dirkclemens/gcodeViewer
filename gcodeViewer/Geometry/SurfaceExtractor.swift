@@ -1,18 +1,17 @@
 import Foundation
 import simd
 
-/// Integer voxel coordinate in 3D space.
 typealias VoxelCoord = SIMD3<Int32>
 
-/// Converts a list of extruding G-code moves into a set of surface voxels.
+/// Converts extruding G-code moves into a filled voxel set.
 ///
-/// Algorithm:
-///  1. Voxelise all extruding line segments (fill a sparse 3D occupancy set).
-///  2. Iterate the filled set and retain only voxels that have at least one
-///     empty face-neighbour — these form the outer shell.
+/// Pipeline:
+///  1. Voxelise all extruding segments with the Amanatides-Woo 3-D DDA.
+///  2. Dilate the filled set by one voxel in all six axis directions to
+///     close gaps between adjacent extrusion passes and across layer boundaries.
 ///
-/// This naturally hides all internal infill, walls, and support structures
-/// that are completely enclosed by surrounding voxels.
+/// The returned set is the *complete* filled volume; surface extraction is
+/// handled downstream by the Marching Cubes algorithm in MeshBuilder.
 enum SurfaceExtractor {
 
     // MARK: - Public API
@@ -25,88 +24,115 @@ enum SurfaceExtractor {
 
         return await Task.detached(priority: .userInitiated) {
 
-            // ── Phase 1: Fill voxels ────────────────────────────────────────
+            // ── Phase 1: fill voxels along extrusion paths ─────────────────
             var filled = Set<VoxelCoord>()
             filled.reserveCapacity(500_000)
 
-            // Only process moves that actually extrude material.
-            // Each Move carries its own start (from) and end (position), so
-            // there is no need to chain consecutive moves — gaps caused by
-            // travel moves (G0, no extrusion) are naturally ignored.
-            let extrudingMoves = moves.filter { $0.isExtrusion }
-            let total = extrudingMoves.count
+            let extruding = moves.filter { $0.isExtrusion }
+            let total     = extruding.count
             guard total > 0 else { return Set<VoxelCoord>() }
 
-            for (i, move) in extrudingMoves.enumerated() {
+            for (i, move) in extruding.enumerated() {
                 let voxels = voxeliseLine(from: move.from, to: move.position, voxelSize: voxelSize)
                 for v in voxels { filled.insert(v) }
 
-                if i % 5000 == 0 {
-                    let p = Double(i) / Double(total)
-                    await progressHandler(p * 0.8)
+                if i % 5_000 == 0 {
+                    await progressHandler(Double(i) / Double(total) * 0.7)
                 }
             }
 
-            // ── Phase 2: Extract surface shell ─────────────────────────────
-            let neighbours: [VoxelCoord] = [
+            // ── Phase 2: 6-neighbour dilation ──────────────────────────────
+            // Closes gaps between adjacent extrusion lines and across layers.
+            let offsets: [VoxelCoord] = [
                 SIMD3( 1,  0,  0), SIMD3(-1,  0,  0),
                 SIMD3( 0,  1,  0), SIMD3( 0, -1,  0),
                 SIMD3( 0,  0,  1), SIMD3( 0,  0, -1),
             ]
-
-            var surface = Set<VoxelCoord>()
-            surface.reserveCapacity(filled.count / 2)
-
-            for voxel in filled {
-                for n in neighbours {
-                    if !filled.contains(voxel &+ n) {
-                        surface.insert(voxel)
-                        break
-                    }
-                }
+            var dilated = filled
+            dilated.reserveCapacity(filled.count * 2)
+            for v in filled {
+                for off in offsets { dilated.insert(v &+ off) }
             }
 
             await progressHandler(1.0)
-            return surface
+            return dilated
 
         }.value
     }
 
-    // MARK: - Private helpers
+    // MARK: - Amanatides-Woo 3-D DDA
 
-    /// Voxelise the straight line segment between two 3D points using a 3D DDA.
-    /// Returns every voxel coordinate the segment passes through.
+    /// Returns every voxel the segment [a, b] passes through.
     nonisolated private static func voxeliseLine(
         from a: SIMD3<Float>,
-        to b: SIMD3<Float>,
+        to   b: SIMD3<Float>,
         voxelSize: Float
     ) -> [VoxelCoord] {
 
-        let diff = b - a
-        let length = simd_length(diff)
-        guard length > 0 else { return [toVoxel(a, size: voxelSize)] }
-
-        let step = diff / length
-        let halfVoxel = voxelSize * 0.5
-        var result: [VoxelCoord] = []
-        var t: Float = 0
         var current = toVoxel(a, size: voxelSize)
-        result.append(current)
+        let end     = toVoxel(b, size: voxelSize)
 
-        while t < length {
-            t += halfVoxel
-            let pos = a + step * min(t, length)
-            let next = toVoxel(pos, size: voxelSize)
-            if next != current {
-                result.append(next)
-                current = next
+        if current == end { return [current] }
+
+        let diff = b - a
+        let len  = simd_length(diff)
+        guard len > 0 else { return [current] }
+        let dir  = diff / len
+
+        // Step direction per axis
+        let stepX = dir.x > 0 ? Int32(1) : (dir.x < 0 ? Int32(-1) : Int32(0))
+        let stepY = dir.y > 0 ? Int32(1) : (dir.y < 0 ? Int32(-1) : Int32(0))
+        let stepZ = dir.z > 0 ? Int32(1) : (dir.z < 0 ? Int32(-1) : Int32(0))
+
+        // Distance along ray to first voxel boundary in each axis
+        let ox = Float(current.x) * voxelSize
+        let oy = Float(current.y) * voxelSize
+        let oz = Float(current.z) * voxelSize
+
+        var tMaxX: Float = stepX > 0 ? (ox + voxelSize - a.x) / dir.x
+                         : stepX < 0 ? (ox - a.x) / dir.x
+                         : .infinity
+        var tMaxY: Float = stepY > 0 ? (oy + voxelSize - a.y) / dir.y
+                         : stepY < 0 ? (oy - a.y) / dir.y
+                         : .infinity
+        var tMaxZ: Float = stepZ > 0 ? (oz + voxelSize - a.z) / dir.z
+                         : stepZ < 0 ? (oz - a.z) / dir.z
+                         : .infinity
+
+        // Parametric step size to cross one full voxel in each axis
+        let tDeltaX: Float = stepX != 0 ? abs(voxelSize / dir.x) : .infinity
+        let tDeltaY: Float = stepY != 0 ? abs(voxelSize / dir.y) : .infinity
+        let tDeltaZ: Float = stepZ != 0 ? abs(voxelSize / dir.z) : .infinity
+
+        var result: [VoxelCoord] = [current]
+
+        while true {
+            if tMaxX < tMaxY {
+                if tMaxX < tMaxZ {
+                    current.x += stepX
+                    tMaxX     += tDeltaX
+                } else {
+                    current.z += stepZ
+                    tMaxZ     += tDeltaZ
+                }
+            } else {
+                if tMaxY < tMaxZ {
+                    current.y += stepY
+                    tMaxY     += tDeltaY
+                } else {
+                    current.z += stepZ
+                    tMaxZ     += tDeltaZ
+                }
             }
+            result.append(current)
+            if current == end { break }
+            // Safety: stop if we overshot (floating-point can cause this)
+            if min(tMaxX, min(tMaxY, tMaxZ)) > len + voxelSize { break }
         }
 
         return result
     }
 
-    /// Convert a world-space position (mm) to an integer voxel coordinate.
     nonisolated private static func toVoxel(_ pos: SIMD3<Float>, size: Float) -> VoxelCoord {
         SIMD3<Int32>(
             Int32(floor(pos.x / size)),

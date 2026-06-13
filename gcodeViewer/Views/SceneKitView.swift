@@ -265,32 +265,50 @@ struct SceneKitView: NSViewRepresentable {
 
     // MARK: - Helpers
 
+    // Lights are attached to the camera node (added in frameCamera) so they
+    // travel with the camera and illumination stays consistent while orbiting.
+    // This function adds only the scene-level ambient light.
     private func attachLights(to scene: SCNScene) {
         let ambient = SCNLight()
-        ambient.type = .ambient
-        ambient.intensity = 180
-        ambient.color = NSColor.white
-        let ambientNode = SCNNode()
-        ambientNode.light = ambient
-        scene.rootNode.addChildNode(ambientNode)
+        ambient.type      = .ambient
+        ambient.intensity = 150
+        ambient.color     = NSColor.white
+        let ambNode       = SCNNode()
+        ambNode.light     = ambient
+        scene.rootNode.addChildNode(ambNode)
+    }
 
+    /// Add camera-relative directional lights to `pov` the first time it is set up.
+    private func attachCameraLights(to pov: SCNNode) {
+        // Key light — front-above-left
         let key = SCNLight()
-        key.type = .directional
+        key.type      = .directional
         key.intensity = 900
-        key.color = NSColor.white
-        let keyNode = SCNNode()
+        key.color     = NSColor.white
+        let keyNode   = SCNNode()
         keyNode.light = key
-        keyNode.eulerAngles = SCNVector3(-Float.pi / 5, Float.pi / 4, 0)
-        scene.rootNode.addChildNode(keyNode)
+        keyNode.eulerAngles = SCNVector3(-Float.pi / 5, Float.pi / 6, 0)
+        pov.addChildNode(keyNode)
 
+        // Fill light — right side, softer
         let fill = SCNLight()
-        fill.type = .directional
-        fill.intensity = 300
-        fill.color = NSColor(white: 0.8, alpha: 1)
-        let fillNode = SCNNode()
+        fill.type      = .directional
+        fill.intensity = 350
+        fill.color     = NSColor(white: 0.85, alpha: 1)
+        let fillNode   = SCNNode()
         fillNode.light = fill
         fillNode.eulerAngles = SCNVector3(0, -Float.pi / 2, 0)
-        scene.rootNode.addChildNode(fillNode)
+        pov.addChildNode(fillNode)
+
+        // Rim / back light — subtle separation from background
+        let rim = SCNLight()
+        rim.type      = .directional
+        rim.intensity = 200
+        rim.color     = NSColor(white: 0.6, alpha: 1)
+        let rimNode   = SCNNode()
+        rimNode.light = rim
+        rimNode.eulerAngles = SCNVector3(Float.pi / 6, Float.pi, 0)
+        pov.addChildNode(rimNode)
     }
 
     private func frameCamera(in view: GCodeSCNView) {
@@ -340,6 +358,7 @@ struct SceneKitView: NSViewRepresentable {
         } else {
             let camNode = SCNNode()
             camNode.camera = SCNCamera()
+            attachCameraLights(to: camNode)
             scene.rootNode.addChildNode(camNode)
             view.pointOfView = camNode
             pov = camNode
