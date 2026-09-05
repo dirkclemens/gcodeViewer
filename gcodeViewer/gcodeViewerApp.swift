@@ -6,6 +6,10 @@ struct gcodeViewerApp: App {
 
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
 
+    init() {
+        UpdateChecker.checkForUpdate()
+    }
+
     var body: some Scene {
         WindowGroup {
             ContentView(state: appDelegate.appState)
