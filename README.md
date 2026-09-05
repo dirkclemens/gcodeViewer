@@ -1,6 +1,6 @@
 # GCode Viewer
 
-A native macOS application that parses `.gcode` files and renders an interactive 3D surface mesh of the printed object — showing only the **outer shell**, with no internal infill, supports, or travel moves visible.
+gcodeViewer is a native macOS app that parses `.gcode` files and renders an interactive 3D surface mesh of the printed object — showing only the **outer shell**, with no internal infill, supports, or travel moves visible. It uses a voxel-based shell extraction so any slicer's output can be viewed without slicer-specific parsing, and it ships a Quick Look extension that renders the same 3D preview directly in Finder, no app launch required.
 
 ![Screenshot](screenshot.png)
 
@@ -22,14 +22,17 @@ A native macOS application that parses `.gcode` files and renders an interactive
 
 | | |
 |---|---|
-| macOS | 13 Ventura or later |
+| macOS | 14 Sonoma or later |
+| Architecture | Apple Silicon only |
 | Xcode | 15 or later |
 | Swift | 5.10 or later |
 
-## Building
+## Installation
+
+### Build from source
 
 ```bash
-git clone https://github.com/your-username/gcodeViewer.git
+git clone https://github.com/dirkclemens/gcodeViewer.git
 cd gcodeViewer
 open gcodeViewer.xcodeproj
 ```
@@ -37,6 +40,18 @@ open gcodeViewer.xcodeproj
 Select the **gcodeViewer** scheme, choose **My Mac** as the destination, and press **⌘R**.
 
 No package manager or third-party dependencies are required.
+
+### Prebuilt DMG
+
+A ready-to-run build is available as `gcodeViewer-1.0.dmg` (ad-hoc signed, Apple Silicon only, including the Quick Look extension). Since it isn't notarized by Apple, macOS blocks it on first launch. Remove the quarantine flag before opening:
+
+```bash
+xattr -dr com.apple.quarantine /Applications/gcodeViewer.app
+```
+
+Alternatively, right-click the app in Finder and choose "Open".
+
+---
 
 ## Usage
 
@@ -145,6 +160,8 @@ Increase the voxel size if performance is insufficient for a given file.
 - Multi-extruder / multi-colour support
 - Metal-based renderer for very large files
 
+---
+
 ## License
 
-This project is licensed under the GNU General Public License v3.0 — see [LICENSE](LICENSE) for details.
+This project is licensed under the [PolyForm Noncommercial License 1.0.0](https://polyformproject.org/licenses/noncommercial/1.0.0) — see [LICENSE](LICENSE) for details. Free for noncommercial use; commercial use requires a separate license from the author.
