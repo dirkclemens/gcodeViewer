@@ -43,7 +43,7 @@ No package manager or third-party dependencies are required.
 
 ### Prebuilt DMG
 
-A ready-to-run build is available as `gcodeViewer-1.0.dmg` (ad-hoc signed, Apple Silicon only, including the Quick Look extension). Since it isn't notarized by Apple, macOS blocks it on first launch. Remove the quarantine flag before opening:
+A ready-to-run build is available as `gcodeViewer.dmg` (ad-hoc signed, Apple Silicon only, including the Quick Look extension). Since it isn't notarized by Apple, macOS blocks it on first launch. Remove the quarantine flag before opening:
 
 ```bash
 xattr -dr com.apple.quarantine /Applications/gcodeViewer.app
