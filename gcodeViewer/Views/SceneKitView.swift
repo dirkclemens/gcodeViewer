@@ -2,98 +2,122 @@ import SwiftUI
 import SceneKit
 import AppKit
 
-// MARK: - Custom SCNView with full keyboard + modifier-drag controls
+// MARK: - Custom SCNView with complete camera controls
 
-/// SCNView subclass that adds industry-standard modifier-key camera controls
-/// on top of SceneKit's built-in orbit/zoom/pan.
+/// SCNView subclass providing industry-standard camera navigation.
 ///
 /// Control map
 /// ───────────────────────────────────────────────────────────────────────────
-/// Plain drag          → Orbit (turntable)          [SceneKit built-in]
-/// Shift + drag        → Pan (translate)
-/// Alt/Option + drag   → Orbit (Maya convention alias)
-/// Ctrl + drag         → Dolly zoom
-/// Scroll wheel        → Zoom                        [SceneKit built-in]
-/// Shift + scroll      → Pan vertically
-/// Ctrl  + scroll      → Pan horizontally
-/// F                   → Frame object (reset camera)
-/// Numpad 1 / KP1      → Front view  (+Y axis)
-/// Numpad 3 / KP3      → Right view  (+X axis)
-/// Numpad 7 / KP7      → Top view    (+Z axis)
+/// Left drag           → Orbit (turntable)
+/// Right drag          → Pan (translate)
+/// Shift + left drag   → Pan (translate)
+/// Option + left drag  → Orbit (Maya alias)
+/// Ctrl + left drag    → Dolly (zoom by camera distance)
+/// Scroll wheel        → Zoom (SceneKit built-in)
+/// Shift + scroll      → Pan (vertical + horizontal)
+/// Ctrl + scroll       → Pan (horizontal)
+///
+/// F                   → Frame / reset camera
 /// + / =               → Zoom in
-/// - / _               → Zoom out
+/// − / _               → Zoom out
+///
+/// 1 / Numpad 1        → Front view   (+Y axis)
+/// ⌘1                  → Back view    (−Y axis)
+/// 3 / Numpad 3        → Right view   (+X axis)
+/// ⌘3                  → Left view    (−X axis)
+/// 7 / Numpad 7        → Top view     (+Z axis)
+/// ⌘7                  → Bottom view  (−Z axis)
+///
+/// ← / →               → Pan camera left / right
+/// ↑ / ↓               → Pan camera up / down
+/// ⌘← / ⌘→            → Orbit left / right (15° steps)
+/// ⌘↑ / ⌘↓            → Orbit up / down (15° steps)
 /// ───────────────────────────────────────────────────────────────────────────
 final class GCodeSCNView: SCNView {
 
-    /// Called when the user presses F or a numpad view key.
     var onResetCamera: (() -> Void)?
 
-    // Tracks the mouse position from the previous drag event.
+    private enum DragAction { case none, orbit, pan, dolly }
+    private var dragAction: DragAction = .none
     private var lastDragLocation: NSPoint = .zero
 
-    // MARK: - Mouse events
+    // MARK: - Left mouse
 
     override func mouseDown(with event: NSEvent) {
         lastDragLocation = event.locationInWindow
-        // Let SceneKit handle plain left-drag (orbit).
-        // Modifier drags are intercepted in mouseDragged.
-        super.mouseDown(with: event)
+        let mods = event.modifierFlags.intersection([.shift, .control])
+        switch mods {
+        case .shift:
+            dragAction = .pan
+        case .control:
+            dragAction = .dolly
+        default:
+            // Plain drag and Option+drag both orbit via SceneKit's controller.
+            dragAction = .orbit
+            super.mouseDown(with: event)
+        }
     }
 
     override func mouseDragged(with event: NSEvent) {
-        let loc  = event.locationInWindow
-        let dx   = Float(loc.x - lastDragLocation.x)
-        let dy   = Float(loc.y - lastDragLocation.y)
+        let loc = event.locationInWindow
+        let dx  = Float(loc.x - lastDragLocation.x)
+        let dy  = Float(loc.y - lastDragLocation.y)
         lastDragLocation = loc
 
-        let mods = event.modifierFlags.intersection([.shift, .option, .control, .command])
-
-        switch mods {
-
-        case .shift:
-            // Pan: translate the camera and its target in screen space.
-            pan(dx: dx, dy: dy)
-
-        case .option:
-            // Option/Alt + drag → orbit (Maya muscle-memory convention).
-            // We forward this to SceneKit's controller as if it were a plain drag.
-            defaultCameraController.beginInteraction(loc, withViewport: bounds.size)
-            defaultCameraController.continueInteraction(loc, withViewport: bounds.size, sensitivity: 1)
-
-        case .control:
-            // Ctrl + drag → dolly (zoom by moving camera along its axis).
-            dolly(delta: dy - dx)
-
-        default:
-            // No recognised modifier — let SceneKit handle it (plain orbit).
+        switch dragAction {
+        case .pan:
+            panCamera(dx: dx, dy: dy)
+        case .dolly:
+            dollyByDrag(dy: dy)
+        case .orbit:
             super.mouseDragged(with: event)
-            return
+        case .none:
+            break
         }
     }
 
     override func mouseUp(with event: NSEvent) {
-        defaultCameraController.endInteraction(event.locationInWindow,
-                                               withViewport: bounds.size,
-                                               velocity: .zero)
-        super.mouseUp(with: event)
+        if dragAction == .orbit {
+            defaultCameraController.endInteraction(event.locationInWindow,
+                                                   withViewport: bounds.size,
+                                                   velocity: .zero)
+            super.mouseUp(with: event)
+        }
+        dragAction = .none
+    }
+
+    // MARK: - Right mouse (pan)
+
+    override func rightMouseDown(with event: NSEvent) {
+        lastDragLocation = event.locationInWindow
+        dragAction = .pan
+    }
+
+    override func rightMouseDragged(with event: NSEvent) {
+        let loc = event.locationInWindow
+        let dx  = Float(loc.x - lastDragLocation.x)
+        let dy  = Float(loc.y - lastDragLocation.y)
+        lastDragLocation = loc
+        panCamera(dx: dx, dy: dy)
+    }
+
+    override func rightMouseUp(with event: NSEvent) {
+        dragAction = .none
     }
 
     // MARK: - Scroll wheel
 
     override func scrollWheel(with event: NSEvent) {
-        let dx = Float(event.scrollingDeltaX)
-        let dy = Float(event.scrollingDeltaY)
+        let sdx  = Float(event.scrollingDeltaX)
+        let sdy  = Float(event.scrollingDeltaY)
         let mods = event.modifierFlags.intersection([.shift, .control])
 
         switch mods {
         case .shift:
-            // Shift + scroll → pan vertically (and a little horizontally).
-            pan(dx: dx * 0.5, dy: dy * 0.5)
+            panCamera(dx: sdx * 0.5, dy: sdy * 0.5)
         case .control:
-            // Ctrl + scroll → pan horizontally.
-            pan(dx: dy * 0.5, dy: 0)
+            panCamera(dx: sdy * 0.5, dy: 0)
         default:
-            // Plain scroll → zoom (SceneKit handles this natively).
             super.scrollWheel(with: event)
         }
     }
@@ -103,48 +127,68 @@ final class GCodeSCNView: SCNView {
     override var acceptsFirstResponder: Bool { true }
 
     override func keyDown(with event: NSEvent) {
+        let cmd  = event.modifierFlags.contains(.command)
+        let code = event.keyCode
+
+        // Arrow keys: 123=Left 124=Right 125=Down 126=Up
+        if code == 123 || code == 124 || code == 125 || code == 126 {
+            let panPx: Float    = 20
+            let orbitRad: Float = 15 * .pi / 180
+            switch code {
+            case 123: cmd ? orbitStep(dAz: -orbitRad, dEl: 0)  : panCamera(dx:  panPx, dy: 0)
+            case 124: cmd ? orbitStep(dAz:  orbitRad, dEl: 0)  : panCamera(dx: -panPx, dy: 0)
+            case 125: cmd ? orbitStep(dAz: 0, dEl: -orbitRad)  : panCamera(dx: 0, dy:  panPx)
+            case 126: cmd ? orbitStep(dAz: 0, dEl:  orbitRad)  : panCamera(dx: 0, dy: -panPx)
+            default:  break
+            }
+            return
+        }
+
         switch event.charactersIgnoringModifiers {
 
         case "f", "F":
             onResetCamera?()
 
         case "+", "=":
-            dolly(delta: -20)
+            dollyByFraction(0.15)
 
         case "-", "_":
-            dolly(delta: 20)
+            dollyByFraction(-0.15)
 
         case "1":
-            // Front view: camera on +Y axis looking toward origin
-            setStandardView(eye: SIMD3(0, 1, 0), up: SIMD3(0, 0, 1))
+            // Front view (+Y) or Back view (−Y) with ⌘
+            setStandardView(eye: cmd ? SIMD3(0, -1, 0) : SIMD3(0, 1, 0), up: SIMD3(0, 0, 1))
 
         case "3":
-            // Right/side view: camera on +X axis
-            setStandardView(eye: SIMD3(1, 0, 0), up: SIMD3(0, 0, 1))
+            // Right view (+X) or Left view (−X) with ⌘
+            setStandardView(eye: cmd ? SIMD3(-1, 0, 0) : SIMD3(1, 0, 0), up: SIMD3(0, 0, 1))
 
         case "7":
-            // Top view: camera on +Z axis looking down
-            setStandardView(eye: SIMD3(0, 0, 1), up: SIMD3(0, 1, 0))
+            // Top view (+Z) or Bottom view (−Z) with ⌘
+            setStandardView(eye: cmd ? SIMD3(0, 0, -1) : SIMD3(0, 0, 1),
+                            up:  cmd ? SIMD3(0, -1, 0) : SIMD3(0, 1, 0))
 
         default:
             super.keyDown(with: event)
         }
     }
 
-    // MARK: - Camera manipulation helpers
+    // MARK: - Camera manipulation
 
-    /// Pan (translate) the camera and its orbit target in screen space.
-    private func pan(dx: Float, dy: Float) {
+    /// Pan camera and orbit target in screen space.
+    /// Positive dx → camera moves left (scene shifts right); positive dy → camera moves down.
+    private func panCamera(dx: Float, dy: Float) {
         guard let pov = pointOfView else { return }
+        let h = Float(bounds.height)
+        guard h > 0 else { return }
 
-        // Scale factor: larger distance from target → faster pan so it feels linear.
-        let target   = defaultCameraController.target
-        let camPos   = SIMD3<Float>(pov.simdPosition)
-        let tgt      = SIMD3<Float>(target)
-        let distance = simd_length(camPos - tgt)
-        let speed    = distance * 0.001
+        let target   = SIMD3<Float>(defaultCameraController.target)
+        let distance = simd_length(SIMD3<Float>(pov.simdPosition) - target)
+        let fovY     = Float(pov.camera?.fieldOfView ?? 60) * .pi / 180
 
-        // Camera right and up vectors in world space.
+        // Maps one screen pixel to world units at the target plane distance.
+        let scale = 2 * distance * tan(fovY * 0.5) / h
+
         let right = SIMD3<Float>(pov.simdTransform.columns.0.x,
                                  pov.simdTransform.columns.0.y,
                                  pov.simdTransform.columns.0.z)
@@ -152,35 +196,69 @@ final class GCodeSCNView: SCNView {
                                  pov.simdTransform.columns.1.y,
                                  pov.simdTransform.columns.1.z)
 
-        let delta = (-right * dx + up * dy) * speed * 40
+        let delta = (-right * dx - up * dy) * scale
 
+        SCNTransaction.begin()
+        SCNTransaction.animationDuration = 0
         pov.simdPosition += delta
-        defaultCameraController.target = SCNVector3(tgt + delta)
+        defaultCameraController.target = SCNVector3(target.x + delta.x,
+                                                    target.y + delta.y,
+                                                    target.z + delta.z)
+        SCNTransaction.commit()
     }
 
-    /// Dolly: move the camera along its look-at axis (zoom by distance).
-    private func dolly(delta: Float) {
+    /// Move camera along its look axis. Positive fraction → zoom in (reduce distance).
+    private func dollyByFraction(_ fraction: Float) {
         guard let pov = pointOfView else { return }
 
-        let target   = defaultCameraController.target
-        let camPos   = SIMD3<Float>(pov.simdPosition)
-        let tgt      = SIMD3<Float>(target)
-        let toTarget = tgt - camPos
+        let target   = SIMD3<Float>(defaultCameraController.target)
+        let toTarget = target - SIMD3<Float>(pov.simdPosition)
         let distance = simd_length(toTarget)
+        let step     = distance * fraction
+        guard abs(step) < distance * 0.95 else { return }
 
-        // Prevent overshooting through the target.
-        let step = distance * 0.01 * delta
-        guard abs(step) < distance * 0.9 else { return }
-
-        let direction = simd_normalize(toTarget)
-        pov.simdPosition += direction * step
+        SCNTransaction.begin()
+        SCNTransaction.animationDuration = 0
+        pov.simdPosition += simd_normalize(toTarget) * step
+        SCNTransaction.commit()
     }
 
-    /// Position the camera along a cardinal axis at a distance that frames the scene.
+    /// Dolly driven by vertical drag. Drag up (dy > 0 in macOS window coords) → zoom in.
+    private func dollyByDrag(dy: Float) {
+        let h = Float(bounds.height)
+        guard h > 0 else { return }
+        dollyByFraction(dy * 2.0 / h)
+    }
+
+    /// Orbit the camera around the target by azimuth / elevation increments (radians).
+    private func orbitStep(dAz: Float, dEl: Float) {
+        guard let pov = pointOfView else { return }
+
+        let target = SIMD3<Float>(defaultCameraController.target)
+        let offset = SIMD3<Float>(pov.simdPosition) - target
+        let dist   = simd_length(offset)
+        guard dist > 0 else { return }
+
+        let az = atan2(offset.y, offset.x) + dAz
+        let el = max(-.pi / 2 + 0.05,
+                 min( .pi / 2 - 0.05,
+                      asin(max(-1, min(1, offset.z / dist))) + dEl))
+
+        let newOffset = SIMD3<Float>(dist * cos(el) * cos(az),
+                                     dist * cos(el) * sin(az),
+                                     dist * sin(el))
+
+        SCNTransaction.begin()
+        SCNTransaction.animationDuration = 0.15
+        pov.simdPosition = target + newOffset
+        pov.simdLook(at: target, up: SIMD3<Float>(0, 0, 1), localFront: pov.simdWorldFront)
+        SCNTransaction.commit()
+    }
+
+    /// Position the camera on a cardinal axis framing all geometry.
     private func setStandardView(eye: SIMD3<Float>, up: SIMD3<Float>) {
         guard let scene, let pov = pointOfView else { return }
 
-        // Compute world-space bounding box (respects node pivot).
         var allMins = SIMD3<Float>( Float.greatestFiniteMagnitude,
                                     Float.greatestFiniteMagnitude,
                                     Float.greatestFiniteMagnitude)
@@ -206,22 +284,18 @@ final class GCodeSCNView: SCNView {
 
         let centre = (allMins + allMaxs) * 0.5
         let d      = simd_length(allMaxs - allMins) * 0.5
-        let dist   = d * 2.5
-
-        let newPos = centre + eye * dist
 
         SCNTransaction.begin()
         SCNTransaction.animationDuration = 0.35
-        pov.simdPosition = newPos
+        pov.simdPosition = centre + eye * (d * 2.5)
         pov.simdLook(at: centre, up: up, localFront: pov.simdWorldFront)
-        defaultCameraController.target = SCNVector3(centre)
+        defaultCameraController.target = SCNVector3(centre.x, centre.y, centre.z)
         SCNTransaction.commit()
     }
 }
 
 // MARK: - SwiftUI wrapper
 
-/// SwiftUI wrapper around GCodeSCNView.
 struct SceneKitView: NSViewRepresentable {
 
     var scene: SCNScene?
@@ -263,13 +337,10 @@ struct SceneKitView: NSViewRepresentable {
         }
     }
 
-    // MARK: - Helpers
+    // MARK: - Lighting
 
-    // Lights are attached to the camera node (added in frameCamera) so they
-    // travel with the camera and illumination stays consistent while orbiting.
-    // This function adds only the scene-level ambient light.
     private func attachLights(to scene: SCNScene) {
-        let ambient = SCNLight()
+        let ambient       = SCNLight()
         ambient.type      = .ambient
         ambient.intensity = 150
         ambient.color     = NSColor.white
@@ -278,10 +349,8 @@ struct SceneKitView: NSViewRepresentable {
         scene.rootNode.addChildNode(ambNode)
     }
 
-    /// Add camera-relative directional lights to `pov` the first time it is set up.
     private func attachCameraLights(to pov: SCNNode) {
-        // Key light — front-above-left
-        let key = SCNLight()
+        let key       = SCNLight()
         key.type      = .directional
         key.intensity = 900
         key.color     = NSColor.white
@@ -290,8 +359,7 @@ struct SceneKitView: NSViewRepresentable {
         keyNode.eulerAngles = SCNVector3(-Float.pi / 5, Float.pi / 6, 0)
         pov.addChildNode(keyNode)
 
-        // Fill light — right side, softer
-        let fill = SCNLight()
+        let fill       = SCNLight()
         fill.type      = .directional
         fill.intensity = 350
         fill.color     = NSColor(white: 0.85, alpha: 1)
@@ -300,8 +368,7 @@ struct SceneKitView: NSViewRepresentable {
         fillNode.eulerAngles = SCNVector3(0, -Float.pi / 2, 0)
         pov.addChildNode(fillNode)
 
-        // Rim / back light — subtle separation from background
-        let rim = SCNLight()
+        let rim       = SCNLight()
         rim.type      = .directional
         rim.intensity = 200
         rim.color     = NSColor(white: 0.6, alpha: 1)
@@ -311,10 +378,11 @@ struct SceneKitView: NSViewRepresentable {
         pov.addChildNode(rimNode)
     }
 
+    // MARK: - Camera framing
+
     private func frameCamera(in view: GCodeSCNView) {
         guard let scene = view.scene else { return }
 
-        // Compute the world-space bounding box by walking geometry nodes.
         var allMins = SIMD3<Float>( Float.greatestFiniteMagnitude,
                                     Float.greatestFiniteMagnitude,
                                     Float.greatestFiniteMagnitude)
@@ -324,8 +392,6 @@ struct SceneKitView: NSViewRepresentable {
 
         for node in scene.rootNode.childNodes {
             guard node.geometry != nil, node.name != "grid" else { continue }
-            // convertPosition maps local-space corners to world space,
-            // correctly accounting for the node's position and pivot.
             let (mn, mx) = node.boundingBox
             let corners: [SCNVector3] = [
                 SCNVector3(mn.x, mn.y, mn.z), SCNVector3(mx.x, mn.y, mn.z),
@@ -334,7 +400,7 @@ struct SceneKitView: NSViewRepresentable {
                 SCNVector3(mn.x, mx.y, mx.z), SCNVector3(mx.x, mx.y, mx.z),
             ]
             for c in corners {
-                let w = node.convertPosition(c, to: nil) // nil = world space
+                let w = node.convertPosition(c, to: nil)
                 allMins = simd_min(allMins, SIMD3<Float>(Float(w.x), Float(w.y), Float(w.z)))
                 allMaxs = simd_max(allMaxs, SIMD3<Float>(Float(w.x), Float(w.y), Float(w.z)))
             }
@@ -342,16 +408,14 @@ struct SceneKitView: NSViewRepresentable {
 
         guard allMins.x < Float.greatestFiniteMagnitude else { return }
 
-        let centre = (allMins + allMaxs) * 0.5
-        let span   = allMaxs - allMins
-        let radius = simd_length(span) * 0.5
+        let centre   = (allMins + allMaxs) * 0.5
+        let span     = allMaxs - allMins
+        let radius   = simd_length(span) * 0.5
         let distance = radius * 2.5
 
-        // Camera sits at a slight angle (front-left-above) for a natural first view.
-        let camOffset = SIMD3<Float>(0, -distance * 0.4, distance)
-        let camPos    = centre + camOffset
+        // Slight front-left-above angle for a natural initial view.
+        let camPos = centre + SIMD3<Float>(0, -distance * 0.4, distance)
 
-        // Update or create the camera node.
         let pov: SCNNode
         if let existing = view.pointOfView {
             pov = existing
@@ -364,11 +428,9 @@ struct SceneKitView: NSViewRepresentable {
             pov = camNode
         }
 
-        // Always update zNear/zFar so tiny or huge models clip correctly.
         pov.camera?.zNear = Double(radius) * 0.001
         pov.camera?.zFar  = Double(radius) * 20
 
-        // Position + orient the camera, then sync the orbit controller target.
         SCNTransaction.begin()
         SCNTransaction.animationDuration = 0
         pov.simdPosition = camPos
