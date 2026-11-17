@@ -33,16 +33,33 @@ final class AppState: ObservableObject {
         }
     }
 
+    /// Short summary of the rendered mesh (triangle count, effective voxel size).
+    @Published var meshInfo: String?
+
     // MARK: - Load pipeline
 
+    private var loadTask: Task<Void, Never>?
+    /// Identifies the most recent `load` call; results of older ones are discarded.
+    private var loadGeneration = 0
+
     func load(url: URL) {
+        // A newer request supersedes whatever is still running.
+        loadTask?.cancel()
+        loadGeneration += 1
+        let generation = loadGeneration
+
         fileURL = url
         errorMessage = nil
+        meshInfo = nil
         isLoading = true
         progress = 0.0
+        loadingPhase = "Parsing G-code…"
         scene = nil
 
-        Task { [self] in
+        let requestedVoxelSize = Float(voxelSize)
+        let nsColor = NSColor(objectColor)
+
+        loadTask = Task { [self] in
             // Acquire sandbox access. URLs from application(_:open:) and from
             // security-scoped bookmarks require this; NSOpenPanel/fileImporter
             // URLs also accept it safely (startAccessing returns false but that
@@ -51,66 +68,52 @@ final class AppState: ObservableObject {
             defer { if accessing { url.stopAccessingSecurityScopedResource() } }
 
             do {
-                loadingPhase = "Parsing G-code…"
-                let moves = try await GCodeParser.parse(url: url) { p in
-                    await MainActor.run { self.progress = p * 0.5 }
+                let model = try await GCodeParser.parse(url: url) { p in
+                    await self.report(progress: p * 0.4, generation: generation)
                 }
+                try Task.checkCancellation()
 
                 loadingPhase = "Voxelising…"
-                let voxelSizeCopy = Float(voxelSize)
-                let voxels = await SurfaceExtractor.extract(
-                    moves: moves,
-                    voxelSize: voxelSizeCopy
+                let grid = await SurfaceExtractor.extract(
+                    model: model,
+                    voxelSize: requestedVoxelSize
                 ) { p in
-                    await MainActor.run { self.progress = 0.5 + p * 0.3 }
+                    await self.report(progress: 0.4 + p * 0.4, generation: generation)
                 }
+                try Task.checkCancellation()
 
                 loadingPhase = "Building mesh…"
-                let nsColor = NSColor(objectColor)
-                let geometry = await MeshBuilder.build(
-                    filled: voxels,
-                    voxelSize: voxelSizeCopy,
-                    color: nsColor
-                )
+                let mesh = await MeshBuilder.build(grid: grid)
+                try Task.checkCancellation()
 
-                loadingPhase = "Done"
                 progress = 1.0
-
-                let newScene = SCNScene()
-                let node = SCNNode(geometry: geometry)
-
-                // Read XY extents before applying the pivot so we have raw print-space coords.
-                let (minB, maxB) = node.boundingBox
-
-                // Centre the model at origin for nicer default camera framing.
-                let centre = SCNVector3(
-                    (minB.x + maxB.x) / 2,
-                    (minB.y + maxB.y) / 2,
-                    (minB.z + maxB.z) / 2
-                )
-                node.pivot = SCNMatrix4MakeTranslation(centre.x, centre.y, centre.z)
-                newScene.rootNode.addChildNode(node)
-
-                // Add the grid at Z = 0.  Because the mesh node is centred around
-                // the XY midpoint via its pivot, we need to shift the grid by the
-                // same XY offset so it still aligns with the object footprint.
-                let gridNode = GridBuilder.build(
-                    minX: Float(minB.x - centre.x),
-                    maxX: Float(maxB.x - centre.x),
-                    minY: Float(minB.y - centre.y),
-                    maxY: Float(maxB.y - centre.y)
-                )
-                // The grid sits at the bottom face of the object (minB.z shifted by pivot).
-                gridNode.position = SCNVector3(0, 0, minB.z - centre.z)
-                newScene.rootNode.addChildNode(gridNode)
-
-                scene = newScene
-
+                if mesh.isEmpty {
+                    errorMessage = "No extrusion moves found in this file."
+                } else {
+                    scene = SceneBuilder.makeScene(mesh: mesh, color: nsColor)
+                    meshInfo = Self.describe(mesh: mesh, grid: grid, requested: requestedVoxelSize)
+                }
+            } catch is CancellationError {
+                return          // superseded — the newer load owns the UI state
             } catch {
                 errorMessage = error.localizedDescription
             }
-            isLoading = false
+            if generation == loadGeneration { isLoading = false }
         }
+    }
+
+    private func report(progress value: Double, generation: Int) {
+        guard generation == loadGeneration else { return }
+        progress = value
+    }
+
+    private static func describe(mesh: MeshData, grid: VoxelGrid, requested: Float) -> String {
+        let triangles = mesh.triangleCount.formatted(.number)
+        var text = "\(triangles) triangles · \(String(format: "%.2f", grid.voxelSize)) mm voxels"
+        if grid.voxelSize > requested * 1.01 {
+            text += " (raised from \(String(format: "%.2f", requested)) mm — model too large)"
+        }
+        return text
     }
 
     /// Re-run the mesh build with the current colour (no re-parse needed).
@@ -118,7 +121,7 @@ final class AppState: ObservableObject {
         guard let scene else { return }
         let nsColor = NSColor(objectColor)
         // Target the mesh node specifically (not the grid node).
-        for node in scene.rootNode.childNodes where node.name != "grid" {
+        for node in scene.rootNode.childNodes where node.name != SceneBuilder.gridNodeName {
             node.geometry?.materials.first?.diffuse.contents = nsColor
         }
     }

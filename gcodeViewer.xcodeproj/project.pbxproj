@@ -10,10 +10,13 @@
 		437B78632F7FE75800888191 /* Quartz.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 437B78622F7FE75700888191 /* Quartz.framework */; };
 		437B786F2F7FE75800888191 /* gcodeViewerQL.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 437B78602F7FE75700888191 /* gcodeViewerQL.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		437B787F2F7FE85900888191 /* GCodeSnapshotRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 437B78792F7FE85900888191 /* GCodeSnapshotRenderer.swift */; };
-		437B78802F7FE85900888191 /* PreviewProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 437B787A2F7FE85900888191 /* PreviewProvider.swift */; };
 		437B78C92F7FE94A00888191 /* SceneKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 437B78C82F7FE94A00888191 /* SceneKit.framework */; };
 		437B78CB2F7FE95300888191 /* Metal.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 437B78CA2F7FE95300888191 /* Metal.framework */; };
 		437B78CD2F7FE95E00888191 /* QuickLookUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 437B78CC2F7FE95E00888191 /* QuickLookUI.framework */; };
+		A7C0DE000000000000000001 /* GCodeSnapshotRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 437B78792F7FE85900888191 /* GCodeSnapshotRenderer.swift */; };
+		A7C0DE000000000000000002 /* ThumbnailProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7C0DE000000000000000006 /* ThumbnailProvider.swift */; };
+		A7C0DE000000000000000003 /* gcodeViewerQLThumbnail.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = A7C0DE000000000000000005 /* gcodeViewerQLThumbnail.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		A7C0DE0000000000000000F1 /* PreviewViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7C0DE0000000000000000F2 /* PreviewViewController.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -23,6 +26,13 @@
 			proxyType = 1;
 			remoteGlobalIDString = 437B785F2F7FE75700888191;
 			remoteInfo = gcodeViewerQL;
+		};
+		A7C0DE000000000000000004 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 437B77B72F7F914E00888191 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = A7C0DE00000000000000000C;
+			remoteInfo = gcodeViewerQLThumbnail;
 		};
 /* End PBXContainerItemProxy section */
 
@@ -34,6 +44,7 @@
 			dstSubfolderSpec = 13;
 			files = (
 				437B786F2F7FE75800888191 /* gcodeViewerQL.appex in Embed Foundation Extensions */,
+				A7C0DE000000000000000003 /* gcodeViewerQLThumbnail.appex in Embed Foundation Extensions */,
 			);
 			name = "Embed Foundation Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -46,14 +57,29 @@
 		437B78602F7FE75700888191 /* gcodeViewerQL.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = gcodeViewerQL.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		437B78622F7FE75700888191 /* Quartz.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Quartz.framework; path = System/Library/Frameworks/Quartz.framework; sourceTree = SDKROOT; };
 		437B78792F7FE85900888191 /* GCodeSnapshotRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GCodeSnapshotRenderer.swift; sourceTree = "<group>"; };
-		437B787A2F7FE85900888191 /* PreviewProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreviewProvider.swift; sourceTree = "<group>"; };
 		437B78C82F7FE94A00888191 /* SceneKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SceneKit.framework; path = System/Library/Frameworks/SceneKit.framework; sourceTree = SDKROOT; };
 		437B78CA2F7FE95300888191 /* Metal.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Metal.framework; path = System/Library/Frameworks/Metal.framework; sourceTree = SDKROOT; };
 		437B78CC2F7FE95E00888191 /* QuickLookUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = QuickLookUI.framework; path = System/Library/Frameworks/QuickLookUI.framework; sourceTree = SDKROOT; };
+		A7C0DE000000000000000005 /* gcodeViewerQLThumbnail.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = gcodeViewerQLThumbnail.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		A7C0DE000000000000000006 /* ThumbnailProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThumbnailProvider.swift; sourceTree = "<group>"; };
+		A7C0DE0000000000000000F2 /* PreviewViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreviewViewController.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
 		437B78852F7FE88900888191 /* Exceptions for "gcodeViewer" folder in "gcodeViewerQL" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Geometry/GridBuilder.swift,
+				Geometry/MeshBuilder.swift,
+				Geometry/SceneBuilder.swift,
+				Geometry/SurfaceExtractor.swift,
+				Model/Move.swift,
+				Parser/GCodeParser.swift,
+				Views/GCodeSCNView.swift,
+			);
+			target = 437B785F2F7FE75700888191 /* gcodeViewerQL */;
+		};
+		A7C0DE000000000000000007 /* Exceptions for "gcodeViewer" folder in "gcodeViewerQLThumbnail" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Geometry/MeshBuilder.swift,
@@ -61,7 +87,7 @@
 				Model/Move.swift,
 				Parser/GCodeParser.swift,
 			);
-			target = 437B785F2F7FE75700888191 /* gcodeViewerQL */;
+			target = A7C0DE00000000000000000C /* gcodeViewerQLThumbnail */;
 		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
@@ -70,6 +96,7 @@
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
 				437B78852F7FE88900888191 /* Exceptions for "gcodeViewer" folder in "gcodeViewerQL" target */,
+				A7C0DE000000000000000007 /* Exceptions for "gcodeViewer" folder in "gcodeViewerQLThumbnail" target */,
 			);
 			path = gcodeViewer;
 			sourceTree = "<group>";
@@ -95,6 +122,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		A7C0DE00000000000000000A /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -106,6 +140,7 @@
 				437B78612F7FE75700888191 /* Frameworks */,
 				437B77C02F7F914E00888191 /* Products */,
 				437B787D2F7FE85900888191 /* gcodeViewerQL */,
+				A7C0DE000000000000000008 /* gcodeViewerQLThumbnail */,
 			);
 			sourceTree = "<group>";
 		};
@@ -114,6 +149,7 @@
 			children = (
 				437B77BF2F7F914E00888191 /* gcodeViewer.app */,
 				437B78602F7FE75700888191 /* gcodeViewerQL.appex */,
+				A7C0DE000000000000000005 /* gcodeViewerQLThumbnail.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -133,9 +169,17 @@
 			isa = PBXGroup;
 			children = (
 				437B78792F7FE85900888191 /* GCodeSnapshotRenderer.swift */,
-				437B787A2F7FE85900888191 /* PreviewProvider.swift */,
+				A7C0DE0000000000000000F2 /* PreviewViewController.swift */,
 			);
 			path = gcodeViewerQL;
+			sourceTree = "<group>";
+		};
+		A7C0DE000000000000000008 /* gcodeViewerQLThumbnail */ = {
+			isa = PBXGroup;
+			children = (
+				A7C0DE000000000000000006 /* ThumbnailProvider.swift */,
+			);
+			path = gcodeViewerQLThumbnail;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -154,6 +198,7 @@
 			);
 			dependencies = (
 				437B786E2F7FE75800888191 /* PBXTargetDependency */,
+				A7C0DE00000000000000000D /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				437B77C12F7F914E00888191 /* gcodeViewer */,
@@ -184,6 +229,25 @@
 			productReference = 437B78602F7FE75700888191 /* gcodeViewerQL.appex */;
 			productType = "com.apple.product-type.app-extension";
 		};
+		A7C0DE00000000000000000C /* gcodeViewerQLThumbnail */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A7C0DE000000000000000010 /* Build configuration list for PBXNativeTarget "gcodeViewerQLThumbnail" */;
+			buildPhases = (
+				A7C0DE000000000000000009 /* Sources */,
+				A7C0DE00000000000000000A /* Frameworks */,
+				A7C0DE00000000000000000B /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = gcodeViewerQLThumbnail;
+			packageProductDependencies = (
+			);
+			productName = gcodeViewerQLThumbnail;
+			productReference = A7C0DE000000000000000005 /* gcodeViewerQLThumbnail.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -199,6 +263,9 @@
 					};
 					437B785F2F7FE75700888191 = {
 						CreatedOnToolsVersion = 26.4;
+					};
+					A7C0DE00000000000000000C = {
+						CreatedOnToolsVersion = 27.2;
 					};
 				};
 			};
@@ -218,6 +285,7 @@
 			targets = (
 				437B77BE2F7F914E00888191 /* gcodeViewer */,
 				437B785F2F7FE75700888191 /* gcodeViewerQL */,
+				A7C0DE00000000000000000C /* gcodeViewerQLThumbnail */,
 			);
 		};
 /* End PBXProject section */
@@ -231,6 +299,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		437B785E2F7FE75700888191 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A7C0DE00000000000000000B /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -252,7 +327,16 @@
 			buildActionMask = 2147483647;
 			files = (
 				437B787F2F7FE85900888191 /* GCodeSnapshotRenderer.swift in Sources */,
-				437B78802F7FE85900888191 /* PreviewProvider.swift in Sources */,
+				A7C0DE0000000000000000F1 /* PreviewViewController.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A7C0DE000000000000000009 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A7C0DE000000000000000001 /* GCodeSnapshotRenderer.swift in Sources */,
+				A7C0DE000000000000000002 /* ThumbnailProvider.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -264,6 +348,11 @@
 			target = 437B785F2F7FE75700888191 /* gcodeViewerQL */;
 			targetProxy = 437B786D2F7FE75800888191 /* PBXContainerItemProxy */;
 		};
+		A7C0DE00000000000000000D /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = A7C0DE00000000000000000C /* gcodeViewerQLThumbnail */;
+			targetProxy = A7C0DE000000000000000004 /* PBXContainerItemProxy */;
+		};
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
@@ -271,6 +360,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
+				ARCHS = arm64;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
@@ -328,7 +418,6 @@
 				SDKROOT = macosx;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
-				ARCHS = arm64;
 			};
 			name = Debug;
 		};
@@ -336,6 +425,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
+				ARCHS = arm64;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
@@ -385,7 +475,6 @@
 				MTL_FAST_MATH = YES;
 				SDKROOT = macosx;
 				SWIFT_COMPILATION_MODE = wholemodule;
-				ARCHS = arm64;
 			};
 			name = Release;
 		};
@@ -396,7 +485,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = BXZ479CGUZ;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_FILE_ACCESS_DOWNLOADS_FOLDER = readonly;
@@ -418,7 +507,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 2.0.2;
+				MARKETING_VERSION = 2.1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = de.adcore.gcodeViewer;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -438,7 +527,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = BXZ479CGUZ;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_FILE_ACCESS_DOWNLOADS_FOLDER = readonly;
@@ -460,7 +549,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 2.0.2;
+				MARKETING_VERSION = 2.1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = de.adcore.gcodeViewer;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -477,7 +566,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = BXZ479CGUZ;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -489,7 +578,7 @@
 					"@executable_path/../Frameworks",
 					"@executable_path/../../../../Frameworks",
 				);
-				MARKETING_VERSION = 2.0.2;
+				MARKETING_VERSION = 2.1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = de.adcore.gcodeViewer.gcodeViewerQL;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -506,7 +595,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = BXZ479CGUZ;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -518,8 +607,66 @@
 					"@executable_path/../Frameworks",
 					"@executable_path/../../../../Frameworks",
 				);
-				MARKETING_VERSION = 2.0.2;
+				MARKETING_VERSION = 2.1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = de.adcore.gcodeViewer.gcodeViewerQL;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		A7C0DE00000000000000000E /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 2;
+				DEVELOPMENT_TEAM = BXZ479CGUZ;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_USER_SELECTED_FILES = readonly;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = gcodeViewerQLThumbnail/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@executable_path/../../../../Frameworks",
+				);
+				MARKETING_VERSION = 2.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = de.adcore.gcodeViewer.gcodeViewerQLThumbnail;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		A7C0DE00000000000000000F /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 2;
+				DEVELOPMENT_TEAM = BXZ479CGUZ;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_USER_SELECTED_FILES = readonly;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = gcodeViewerQLThumbnail/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@executable_path/../../../../Frameworks",
+				);
+				MARKETING_VERSION = 2.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = de.adcore.gcodeViewer.gcodeViewerQLThumbnail;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -557,6 +704,15 @@
 			buildConfigurations = (
 				437B78712F7FE75800888191 /* Debug */,
 				437B78722F7FE75800888191 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		A7C0DE000000000000000010 /* Build configuration list for PBXNativeTarget "gcodeViewerQLThumbnail" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A7C0DE00000000000000000E /* Debug */,
+				A7C0DE00000000000000000F /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

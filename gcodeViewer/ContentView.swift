@@ -25,6 +25,20 @@ struct ContentView: View {
                 loadingOverlay
             }
 
+            // ── Mesh statistics ───────────────────────────────────────────
+            if let info = state.meshInfo, state.scene != nil {
+                Text(info)
+                    .font(.caption)
+                    .monospacedDigit()
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(.ultraThinMaterial, in: Capsule())
+                    .padding(12)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+                    .allowsHitTesting(false)
+            }
+
             // ── Error banner ──────────────────────────────────────────────
             if let errorMsg = state.errorMessage {
                 VStack {

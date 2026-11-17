@@ -2,7 +2,7 @@ import SceneKit
 import AppKit
 import simd
 
-// MARK: - Marching Cubes lookup tables (Lorensen & Cline, 1987)
+// MARK: - Marching Cubes lookup table (Lorensen & Cline, 1987)
 //
 // Corner numbering (cube minimum corner at origin):
 //   7---6        +Z up, +X right, +Y into screen
@@ -17,47 +17,10 @@ import simd
 //   4: 4-5   5: 5-6   6: 6-7   7: 7-4   (top ring)
 //   8: 0-4   9: 1-5  10: 2-6  11: 3-7   (vertical)
 
-// Which of the 12 edges are intersected, indexed by the 8-bit corner mask.
-// nonisolated(unsafe): constant Sendable data; safe from any concurrency context.
-nonisolated(unsafe) private let mcEdgeTable: [Int] = [
-    0x000,0x109,0x203,0x30a,0x406,0x50f,0x605,0x70c,
-    0x80c,0x905,0xa0f,0xb06,0xc0a,0xd03,0xe09,0xf00,
-    0x190,0x099,0x393,0x29a,0x596,0x49f,0x795,0x69c,
-    0x99c,0x895,0xb9f,0xa96,0xd9a,0xc93,0xf99,0xe90,
-    0x230,0x339,0x033,0x13a,0x636,0x73f,0x435,0x53c,
-    0xa3c,0xb35,0x83f,0x936,0xe3a,0xf33,0xc39,0xd30,
-    0x3a0,0x2a9,0x1a3,0x0aa,0x7a6,0x6af,0x5a5,0x4ac,
-    0xbac,0xaa5,0x9af,0x8a6,0xfaa,0xea3,0xda9,0xca0,
-    0x460,0x569,0x663,0x76a,0x066,0x16f,0x265,0x36c,
-    0xc6c,0xd65,0xe6f,0xf66,0x86a,0x963,0xa69,0xb60,
-    0x5f0,0x4f9,0x7f3,0x6fa,0x1f6,0x0ff,0x3f5,0x2fc,
-    0xdfc,0xcf5,0xfff,0xef6,0x9fa,0x8f3,0xbf9,0xaf0,
-    0x650,0x759,0x453,0x55a,0x256,0x35f,0x055,0x15c,
-    0xe5c,0xf55,0xc5f,0xd56,0xa5a,0xb53,0x859,0x950,
-    0x7c0,0x6c9,0x5c3,0x4ca,0x3c6,0x2cf,0x1c5,0x0cc,
-    0xfcc,0xec5,0xdcf,0xcc6,0xbca,0xac3,0x9c9,0x8c0,
-    0x8c0,0x9c9,0xac3,0xbca,0xcc6,0xdcf,0xec5,0xfcc,
-    0x0cc,0x1c5,0x2cf,0x3c6,0x4ca,0x5c3,0x6c9,0x7c0,
-    0x950,0x859,0xb53,0xa5a,0xd56,0xc5f,0xf55,0xe5c,
-    0x15c,0x055,0x35f,0x256,0x55a,0x453,0x759,0x650,
-    0xaf0,0xbf9,0x8f3,0x9fa,0xef6,0xfff,0xcf5,0xdfc,
-    0x2fc,0x3f5,0x0ff,0x1f6,0x6fa,0x7f3,0x4f9,0x5f0,
-    0xb60,0xa69,0x963,0x86a,0xf66,0xe6f,0xd65,0xc6c,
-    0x36c,0x265,0x16f,0x066,0x76a,0x663,0x569,0x460,
-    0xca0,0xda9,0xea3,0xfaa,0x8a6,0x9af,0xaa5,0xbac,
-    0x4ac,0x5a5,0x6af,0x7a6,0x0aa,0x1a3,0x2a9,0x3a0,
-    0xd30,0xc39,0xf33,0xe3a,0x936,0x83f,0xb35,0xa3c,
-    0x53c,0x435,0x73f,0x636,0x13a,0x033,0x339,0x230,
-    0xe90,0xf99,0xc93,0xd9a,0xa96,0xb9f,0x895,0x99c,
-    0x69c,0x795,0x49f,0x596,0x29a,0x393,0x099,0x190,
-    0xf00,0xe09,0xd03,0xc0a,0xb06,0xa0f,0x905,0x80c,
-    0x70c,0x605,0x50f,0x406,0x30a,0x203,0x109,0x000
-]
-
 // Triangle edge-index lists; groups of 3, terminated by -1.
 // Winding produces inward normals in the standard Lorensen convention;
-// MeshBuilder swaps e1/e2 on emit to flip to outward normals.
-nonisolated(unsafe) private let mcTriTable: [[Int]] = [
+// MCTables swaps the 2nd and 3rd index of every triangle to face outward.
+nonisolated private let mcTriTable: [[Int]] = [
     [-1],
     [0,8,3,-1],
     [0,1,9,-1],
@@ -316,158 +279,505 @@ nonisolated(unsafe) private let mcTriTable: [[Int]] = [
     [-1]
 ]
 
+/// Flattened, cache-friendly form of the triangle table plus per-triangle
+/// face normals, built once on first use.
+nonisolated private struct MCTables: Sendable {
+    /// 256 × 16 edge indices, outward winding, −1 terminated.
+    let triangles: [Int8]
+    /// Number of triangles per case.
+    let triangleCount: [UInt8]
+    /// 256 × 5 unnormalised face normals (area-weighted, in voxel units).
+    let normals: [SIMD3<Float>]
+
+    static let shared = MCTables()
+
+    private init() {
+        let corner: [SIMD3<Float>] = [
+            SIMD3(0,0,0), SIMD3(1,0,0), SIMD3(1,1,0), SIMD3(0,1,0),
+            SIMD3(0,0,1), SIMD3(1,0,1), SIMD3(1,1,1), SIMD3(0,1,1)
+        ]
+        let edgeCorners: [(Int, Int)] = [
+            (0,1),(1,2),(2,3),(3,0), (4,5),(5,6),(6,7),(7,4), (0,4),(1,5),(2,6),(3,7)
+        ]
+        let edgeMid = edgeCorners.map { (corner[$0.0] + corner[$0.1]) * 0.5 }
+
+        var tris    = [Int8](repeating: -1, count: 256 * 16)
+        var counts  = [UInt8](repeating: 0, count: 256)
+        var normals = [SIMD3<Float>](repeating: .zero, count: 256 * 5)
+
+        for (c, list) in mcTriTable.enumerated() {
+            var t = 0
+            while t * 3 + 2 < list.count && list[t * 3] >= 0 {
+                let e0 = list[t * 3], e1 = list[t * 3 + 2], e2 = list[t * 3 + 1]   // swapped → outward
+                tris[c * 16 + t * 3]     = Int8(e0)
+                tris[c * 16 + t * 3 + 1] = Int8(e1)
+                tris[c * 16 + t * 3 + 2] = Int8(e2)
+                normals[c * 5 + t] = simd_cross(edgeMid[e1] - edgeMid[e0], edgeMid[e2] - edgeMid[e0])
+                t += 1
+            }
+            counts[c] = UInt8(t)
+        }
+        triangles     = tris
+        triangleCount = counts
+        self.normals  = normals
+    }
+}
+
+// MARK: - Mesh data
+
+/// A finished triangle mesh in GPU-ready form. Plain bytes, so it can cross
+/// actor boundaries; the (non-Sendable) `SCNGeometry` is created by the caller.
+nonisolated struct MeshData: Sendable {
+    /// Interleaved Float32 `position.xyz, normal.xyz` — 24 bytes per vertex.
+    let vertexData: Data
+    /// UInt32 triangle indices.
+    let indexData: Data
+    let vertexCount: Int
+    let triangleCount: Int
+    /// Axis-aligned bounds of all vertices (both zero for an empty mesh).
+    let boundsMin: SIMD3<Float>
+    let boundsMax: SIMD3<Float>
+
+    var isEmpty: Bool { triangleCount == 0 }
+
+    static var empty: MeshData {
+        MeshData(vertexData: Data(), indexData: Data(), vertexCount: 0, triangleCount: 0,
+                 boundsMin: .zero, boundsMax: .zero)
+    }
+
+    /// Wraps the buffers in an `SCNGeometry` without copying or converting them.
+    func makeGeometry(color: NSColor) -> SCNGeometry {
+        let stride = 6 * MemoryLayout<Float>.size
+        let vSrc = SCNGeometrySource(
+            data: vertexData, semantic: .vertex, vectorCount: vertexCount,
+            usesFloatComponents: true, componentsPerVector: 3,
+            bytesPerComponent: MemoryLayout<Float>.size, dataOffset: 0, dataStride: stride)
+        let nSrc = SCNGeometrySource(
+            data: vertexData, semantic: .normal, vectorCount: vertexCount,
+            usesFloatComponents: true, componentsPerVector: 3,
+            bytesPerComponent: MemoryLayout<Float>.size,
+            dataOffset: 3 * MemoryLayout<Float>.size, dataStride: stride)
+        let elem = SCNGeometryElement(
+            data: indexData, primitiveType: .triangles,
+            primitiveCount: triangleCount, bytesPerIndex: MemoryLayout<UInt32>.size)
+        let geo = SCNGeometry(sources: [vSrc, nSrc], elements: [elem])
+
+        let mat = SCNMaterial()
+        mat.diffuse.contents  = color
+        mat.specular.contents = NSColor.white
+        mat.shininess         = 60
+        mat.lightingModel     = .phong
+        mat.isDoubleSided     = false
+        geo.materials = [mat]
+        return geo
+    }
+}
+
 // MARK: - Mesh builder
 
-/// Converts a filled voxel set into a smooth SCNGeometry using Marching Cubes.
-enum MeshBuilder {
-
-    // The two endpoints of each of the 12 cube edges (corner indices).
-    nonisolated private static let edgePairs: [(Int, Int)] = [
-        (0,1),(1,2),(2,3),(3,0),   // bottom ring
-        (4,5),(5,6),(6,7),(7,4),   // top ring
-        (0,4),(1,5),(2,6),(3,7)    // vertical
-    ]
-
-    // Corner offsets from cube minimum: 0=(0,0,0) … 7=(0,1,1)
-    nonisolated private static let cornerOffset: [SIMD3<Int32>] = [
-        SIMD3(0,0,0), SIMD3(1,0,0), SIMD3(1,1,0), SIMD3(0,1,0),
-        SIMD3(0,0,1), SIMD3(1,0,1), SIMD3(1,1,1), SIMD3(0,1,1)
-    ]
+/// Converts a `VoxelGrid` into a smooth triangle mesh using Marching Cubes.
+///
+/// Implementation follows the "Flying Edges" idea (Schroeder et al., 2015):
+///
+///  * Pass 1 counts, per grid row, the surface vertices on its X/Y/Z edges
+///    and, per Z slab, the triangles. A prefix sum turns the counts into
+///    final buffer offsets.
+///  * Pass 2 writes vertices and triangles straight to their final position.
+///
+/// Because every offset is known up front, there is no hash map for vertex
+/// de-duplication (a shared vertex's index is a popcount away), no buffer
+/// growth, and all slabs can be processed on all cores at once. Empty and
+/// fully solid regions are skipped 64 cubes at a time.
+nonisolated enum MeshBuilder {
 
     // MARK: - Public API
 
-    /// Build a smooth SCNGeometry from a filled voxel set using Marching Cubes.
-    nonisolated static func build(
-        filled: Set<VoxelCoord>,
-        voxelSize: Float,
-        color: NSColor
-    ) async -> SCNGeometry {
+    @concurrent
+    static func build(grid: VoxelGrid) async -> MeshData {
+        guard !grid.isEmpty, grid.nx > 1, grid.ny > 1, grid.nz > 1 else { return .empty }
 
-        return await Task.detached(priority: .userInitiated) {
+        let job = MeshJob(grid: grid)
+        let nz  = grid.nz
 
-            // Collect unique cube minimum-corners: each filled voxel is a corner
-            // of 8 cubes (offsets -1..0 in each axis).
-            var cubeSet = Set<VoxelCoord>()
-            cubeSet.reserveCapacity(filled.count * 4)
-            for v in filled {
-                for dz in Int32(-1)...0 {
-                    for dy in Int32(-1)...0 {
-                        for dx in Int32(-1)...0 {
-                            cubeSet.insert(v &+ SIMD3(dx, dy, dz))
+        // ── Pass 1: count ──────────────────────────────────────────────────
+        await parallel(count: nz) { z in job.countSlab(z) }
+        guard job.resolveOffsets(), !Task.isCancelled else { return .empty }
+
+        // ── Pass 2: emit ───────────────────────────────────────────────────
+        await parallel(count: nz) { z in job.emitVertices(z) }
+        // A slab's triangles add their face normals to vertices on the slab's
+        // lower and upper plane. Slabs of equal parity share no vertices, so
+        // each half can run fully in parallel without synchronisation.
+        await parallel(count: nz / 2)       { k in job.emitTriangles(2 * k) }
+        await parallel(count: (nz - 1) / 2) { k in job.emitTriangles(2 * k + 1) }
+
+        let (lo, hi) = await job.finishNormals()
+        return job.makeMeshData(boundsMin: lo, boundsMax: hi)
+    }
+
+    // MARK: - Parallel loop
+
+    /// Runs `body(0 ..< count)` on all cores, in contiguous chunks.
+    fileprivate static func parallel(
+        count: Int,
+        _ body: @escaping @Sendable (Int) -> Void
+    ) async {
+        guard count > 0 else { return }
+        let chunks    = min(count, ProcessInfo.processInfo.activeProcessorCount * 4)
+        let chunkSize = (count + chunks - 1) / chunks
+        await withTaskGroup(of: Void.self) { group in
+            var start = 0
+            while start < count {
+                let range = start..<min(start + chunkSize, count)
+                group.addTask {
+                    for i in range { body(i) }
+                }
+                start = range.upperBound
+            }
+        }
+    }
+}
+
+// MARK: - Mesh job
+
+/// Shared state of one mesh build. Every parallel task writes to a disjoint
+/// part of the buffers, which is what makes the unchecked Sendable sound.
+nonisolated private final class MeshJob: @unchecked Sendable {
+
+    private let grid: VoxelGrid
+    private let nx: Int, ny: Int, nz: Int, wpr: Int
+    private let tables = MCTables.shared
+
+    /// Three entries per grid row (z · ny + y): the number — after
+    /// `resolveOffsets()` the first index — of vertices on the row's
+    /// X edges, Y edges (towards y + 1) and Z edges (towards z + 1).
+    private let rowBase: UnsafeMutablePointer<Int32>
+    /// Per slab: triangle count, after `resolveOffsets()` first triangle index.
+    private let triBase: UnsafeMutablePointer<Int>
+
+    private var vertexCount   = 0
+    private var triangleCount = 0
+    private var vertices: UnsafeMutablePointer<Float>?     // 6 floats per vertex
+    private var indices:  UnsafeMutablePointer<UInt32>?    // 3 per triangle
+    private var buffersHandedOff = false
+
+    init(grid: VoxelGrid) {
+        self.grid = grid
+        nx = grid.nx; ny = grid.ny; nz = grid.nz; wpr = grid.wordsPerRow
+        rowBase = .allocate(capacity: 3 * ny * nz)
+        triBase = .allocate(capacity: nz)
+        triBase.initialize(repeating: 0, count: nz)
+    }
+
+    deinit {
+        rowBase.deallocate()
+        triBase.deallocate()
+        if !buffersHandedOff {
+            free(vertices)
+            free(indices)
+        }
+    }
+
+    // MARK: Row access
+
+    /// Word `w` of `row` shifted down by one cell: bit x holds cell x + 1.
+    @inline(__always)
+    private func next(_ row: UnsafePointer<UInt64>, _ w: Int) -> UInt64 {
+        (row[w] >> 1) | (w + 1 < wpr ? row[w + 1] << 63 : 0)
+    }
+
+    /// Marching Cubes case of the cube whose minimum corner is bit `bit`.
+    @inline(__always)
+    private func caseIndex(
+        _ a: UInt64, _ a1: UInt64, _ b: UInt64, _ b1: UInt64,
+        _ c: UInt64, _ c1: UInt64, _ d: UInt64, _ d1: UInt64, _ bit: UInt64
+    ) -> Int {
+        let v = ((a  >> bit) & 1)      | ((a1 >> bit) & 1) << 1
+              | ((b1 >> bit) & 1) << 2 | ((b  >> bit) & 1) << 3
+              | ((c  >> bit) & 1) << 4 | ((c1 >> bit) & 1) << 5
+              | ((d1 >> bit) & 1) << 6 | ((d  >> bit) & 1) << 7
+        return Int(v)
+    }
+
+    // MARK: Pass 1
+
+    func countSlab(_ z: Int) {
+        grid.words.withUnsafeBufferPointer { buf in
+            tables.triangleCount.withUnsafeBufferPointer { triCount in
+                guard let words = buf.baseAddress else { return }
+                let hasZ = z + 1 < nz
+                var slabTriangles = 0
+
+                for y in 0..<ny {
+                    let row  = z * ny + y
+                    let a    = words + row * wpr
+                    let hasY = y + 1 < ny
+                    let b    = hasY ? a + wpr : a
+                    let c    = hasZ ? a + ny * wpr : a
+                    let d    = hasY ? c + wpr : c
+                    var cx = 0, cy = 0, cz = 0
+
+                    for w in 0..<wpr {
+                        let av = a[w], bv = b[w], cv = c[w], dv = d[w]
+                        let a1 = next(a, w)
+                        cx += (av ^ a1).nonzeroBitCount
+                        cy += (av ^ bv).nonzeroBitCount
+                        cz += (av ^ cv).nonzeroBitCount
+
+                        guard hasY && hasZ else { continue }
+                        let b1 = next(b, w), c1 = next(c, w), d1 = next(d, w)
+                        let anySet = av | a1 | bv | b1 | cv | c1 | dv | d1
+                        let allSet = av & a1 & bv & b1 & cv & c1 & dv & d1
+                        var active = anySet & ~allSet
+                        while active != 0 {
+                            let bit = UInt64(active.trailingZeroBitCount)
+                            active &= active - 1
+                            slabTriangles += Int(triCount[caseIndex(av, a1, bv, b1, cv, c1, dv, d1, bit)])
                         }
+                    }
+                    rowBase[3 * row]     = Int32(cx)
+                    rowBase[3 * row + 1] = Int32(cy)
+                    rowBase[3 * row + 2] = Int32(cz)
+                }
+                triBase[z] = slabTriangles
+            }
+        }
+    }
+
+    /// Turns the per-row / per-slab counts into buffer offsets and allocates
+    /// the output buffers. Returns false if there is nothing to build.
+    func resolveOffsets() -> Bool {
+        var v = 0
+        for i in 0..<(3 * ny * nz) {
+            let n = Int(rowBase[i])
+            guard v <= Int(Int32.max) - n else { return false }   // would overflow 32-bit indices
+            rowBase[i] = Int32(v)
+            v += n
+        }
+        var t = 0
+        for z in 0..<nz {
+            let n = triBase[z]
+            triBase[z] = t
+            t += n
+        }
+        guard v > 0, t > 0 else { return false }
+        vertexCount   = v
+        triangleCount = t
+        vertices = malloc(v * 6 * MemoryLayout<Float>.size)?.assumingMemoryBound(to: Float.self)
+        indices  = malloc(t * 3 * MemoryLayout<UInt32>.size)?.assumingMemoryBound(to: UInt32.self)
+        return vertices != nil && indices != nil
+    }
+
+    // MARK: Pass 2 — vertices
+
+    func emitVertices(_ z: Int) {
+        guard let out = vertices else { return }
+        let vs = grid.voxelSize
+        let origin = grid.origin
+
+        grid.words.withUnsafeBufferPointer { buf in
+            guard let words = buf.baseAddress else { return }
+            let hasZ = z + 1 < nz
+            let pz = origin.z + Float(z) * vs
+
+            for y in 0..<ny {
+                let row  = z * ny + y
+                let a    = words + row * wpr
+                let b    = y + 1 < ny ? a + wpr : a
+                let c    = hasZ ? a + ny * wpr : a
+                let py   = origin.y + Float(y) * vs
+                var ix = Int(rowBase[3 * row])
+                var iy = Int(rowBase[3 * row + 1])
+                var iz = Int(rowBase[3 * row + 2])
+
+                @inline(__always) func put(_ i: Int, _ x: Float, _ y: Float, _ z: Float) {
+                    let p = out + i * 6
+                    p[0] = x; p[1] = y; p[2] = z
+                    p[3] = 0; p[4] = 0; p[5] = 0
+                }
+
+                for w in 0..<wpr {
+                    let av = a[w]
+                    var xm = av ^ next(a, w)
+                    var ym = av ^ b[w]
+                    var zm = av ^ c[w]
+                    guard (xm | ym | zm) != 0 else { continue }
+                    let xBase = origin.x + Float(w * 64) * vs
+                    while xm != 0 {
+                        let bit = xm.trailingZeroBitCount
+                        xm &= xm - 1
+                        put(ix, xBase + (Float(bit) + 0.5) * vs, py, pz)
+                        ix += 1
+                    }
+                    while ym != 0 {
+                        let bit = ym.trailingZeroBitCount
+                        ym &= ym - 1
+                        put(iy, xBase + Float(bit) * vs, py + 0.5 * vs, pz)
+                        iy += 1
+                    }
+                    while zm != 0 {
+                        let bit = zm.trailingZeroBitCount
+                        zm &= zm - 1
+                        put(iz, xBase + Float(bit) * vs, py, pz + 0.5 * vs)
+                        iz += 1
                     }
                 }
             }
-
-            // Vertex deduplication: key = sum of the two corner coords in
-            // doubled-integer space (exact midpoint, no float rounding).
-            var positions  = [SIMD3<Float>]()
-            var indices    = [Int32]()
-            var vertexMap  = [SIMD3<Int32>: Int32]()
-            positions.reserveCapacity(filled.count * 3)
-            indices.reserveCapacity(filled.count * 6)
-            vertexMap.reserveCapacity(filled.count * 3)
-
-            for cube in cubeSet {
-                Self.marchCube(
-                    cube:       cube,
-                    filled:     filled,
-                    voxelSize:  voxelSize,
-                    positions:  &positions,
-                    vertexMap:  &vertexMap,
-                    indices:    &indices
-                )
-            }
-
-            // Accumulate face normals at each vertex (smooth shading).
-            var normals = [SIMD3<Float>](repeating: .zero, count: positions.count)
-            var i = 0
-            while i < indices.count {
-                let i0 = Int(indices[i]),
-                    i1 = Int(indices[i+1]),
-                    i2 = Int(indices[i+2])
-                let fn = simd_cross(positions[i1] - positions[i0],
-                                    positions[i2] - positions[i0])
-                normals[i0] += fn
-                normals[i1] += fn
-                normals[i2] += fn
-                i += 3
-            }
-            let unitNormals = normals.map { n -> SCNVector3 in
-                let l = simd_length(n)
-                let u = l > 0 ? n / l : SIMD3<Float>(0, 0, 1)
-                return SCNVector3(u.x, u.y, u.z)
-            }
-
-            let scnPositions = positions.map { SCNVector3($0.x, $0.y, $0.z) }
-            let vSrc = SCNGeometrySource(vertices: scnPositions)
-            let nSrc = SCNGeometrySource(normals: unitNormals)
-            let elem = SCNGeometryElement(indices: indices, primitiveType: .triangles)
-            let geo  = SCNGeometry(sources: [vSrc, nSrc], elements: [elem])
-
-            let mat = SCNMaterial()
-            mat.diffuse.contents  = color
-            mat.specular.contents = NSColor.white
-            mat.shininess         = 60
-            mat.lightingModel     = .phong
-            mat.isDoubleSided     = false
-            geo.materials = [mat]
-            return geo
-
-        }.value
-    }
-
-    // MARK: - Single-cube MC
-
-    nonisolated private static func marchCube(
-        cube:       VoxelCoord,
-        filled:     Set<VoxelCoord>,
-        voxelSize:  Float,
-        positions:  inout [SIMD3<Float>],
-        vertexMap:  inout [SIMD3<Int32>: Int32],
-        indices:    inout [Int32]
-    ) {
-        // Build 8-bit case index
-        var caseIndex = 0
-        for (i, off) in cornerOffset.enumerated() {
-            if filled.contains(cube &+ off) { caseIndex |= (1 << i) }
-        }
-        guard caseIndex != 0 && caseIndex != 255 else { return }
-        let edgeMask = mcEdgeTable[caseIndex]
-        guard edgeMask != 0 else { return }
-
-        // Compute (or reuse) a vertex for each active edge.
-        var edgeVertex = [Int32](repeating: -1, count: 12)
-        for e in 0..<12 {
-            guard (edgeMask & (1 << e)) != 0 else { continue }
-            let (c0, c1) = edgePairs[e]
-            let a = cube &+ cornerOffset[c0]
-            let b = cube &+ cornerOffset[c1]
-            // Key = sum of corner coords in doubled space → exact integer midpoint
-            let key = SIMD3<Int32>(a.x + b.x, a.y + b.y, a.z + b.z)
-            if let existing = vertexMap[key] {
-                edgeVertex[e] = existing
-            } else {
-                let wpos = SIMD3<Float>(
-                    Float(key.x) * voxelSize * 0.5,
-                    Float(key.y) * voxelSize * 0.5,
-                    Float(key.z) * voxelSize * 0.5
-                )
-                let idx = Int32(positions.count)
-                positions.append(wpos)
-                vertexMap[key] = idx
-                edgeVertex[e]  = idx
-            }
-        }
-
-        // Emit triangles; swap e1/e2 to flip to outward-facing normals.
-        let tris = mcTriTable[caseIndex]
-        var t = 0
-        while t < tris.count && tris[t] != -1 {
-            indices.append(edgeVertex[tris[t]])
-            indices.append(edgeVertex[tris[t+2]])   // swapped
-            indices.append(edgeVertex[tris[t+1]])   // swapped
-            t += 3
         }
     }
+
+    // MARK: Pass 2 — triangles + normal accumulation
+
+    func emitTriangles(_ z: Int) {
+        guard z + 1 < nz, let verts = vertices, let idx = indices else { return }
+
+        grid.words.withUnsafeBufferPointer { buf in
+        tables.triangles.withUnsafeBufferPointer { triTable in
+        tables.normals.withUnsafeBufferPointer { normalTable in
+        withUnsafeTemporaryAllocation(of: UInt32.self, capacity: 12) { ev in
+            guard let words = buf.baseAddress else { return }
+            var t = triBase[z]
+
+            for y in 0..<(ny - 1) {
+                let row = z * ny + y
+                let up  = row + ny                      // same y, next slab
+                let a = words + row * wpr               // (y,   z)
+                let b = a + wpr                         // (y+1, z)
+                let c = words + up * wpr                // (y,   z+1)
+                let d = c + wpr                         // (y+1, z+1)
+
+                // Running index of the first vertex of the current word in
+                // each of the eight edge streams this cube row touches.
+                var nX00 = UInt32(rowBase[3 * row]),           nX10 = UInt32(rowBase[3 * (row + 1)])
+                var nX01 = UInt32(rowBase[3 * up]),            nX11 = UInt32(rowBase[3 * (up + 1)])
+                var nY0  = UInt32(rowBase[3 * row + 1]),       nY1  = UInt32(rowBase[3 * up + 1])
+                var nZ0  = UInt32(rowBase[3 * row + 2]),       nZ1  = UInt32(rowBase[3 * (row + 1) + 2])
+
+                for w in 0..<wpr {
+                    let av = a[w], bv = b[w], cv = c[w], dv = d[w]
+                    let a1 = next(a, w), b1 = next(b, w), c1 = next(c, w), d1 = next(d, w)
+                    let anySet = av | a1 | bv | b1 | cv | c1 | dv | d1
+                    guard anySet != 0 else { continue }          // no edges, no cubes
+                    let allSet = av & a1 & bv & b1 & cv & c1 & dv & d1
+
+                    // Edge masks: bit x set ⇔ the edge starting at cell x is cut.
+                    let mX00 = av ^ a1, mX10 = bv ^ b1, mX01 = cv ^ c1, mX11 = dv ^ d1
+                    let mY0  = av ^ bv, mY1  = cv ^ dv
+                    let mZ0  = av ^ cv, mZ1  = bv ^ dv
+
+                    var active = anySet & ~allSet
+                    while active != 0 {
+                        let bit = UInt64(active.trailingZeroBitCount)
+                        active &= active - 1
+                        let ci = caseIndex(av, a1, bv, b1, cv, c1, dv, d1, bit)
+
+                        // Vertex index = stream base + number of cut edges below.
+                        let lo:  UInt64 = (1 &<< bit) &- 1       // cells < x
+                        let lo1: UInt64 = (2 &<< bit) &- 1       // cells < x + 1
+                        ev[0]  = nX00 + UInt32((mX00 & lo ).nonzeroBitCount)
+                        ev[1]  = nY0  + UInt32((mY0  & lo1).nonzeroBitCount)
+                        ev[2]  = nX10 + UInt32((mX10 & lo ).nonzeroBitCount)
+                        ev[3]  = nY0  + UInt32((mY0  & lo ).nonzeroBitCount)
+                        ev[4]  = nX01 + UInt32((mX01 & lo ).nonzeroBitCount)
+                        ev[5]  = nY1  + UInt32((mY1  & lo1).nonzeroBitCount)
+                        ev[6]  = nX11 + UInt32((mX11 & lo ).nonzeroBitCount)
+                        ev[7]  = nY1  + UInt32((mY1  & lo ).nonzeroBitCount)
+                        ev[8]  = nZ0  + UInt32((mZ0  & lo ).nonzeroBitCount)
+                        ev[9]  = nZ0  + UInt32((mZ0  & lo1).nonzeroBitCount)
+                        ev[10] = nZ1  + UInt32((mZ1  & lo1).nonzeroBitCount)
+                        ev[11] = nZ1  + UInt32((mZ1  & lo ).nonzeroBitCount)
+
+                        var k = ci * 16
+                        var n = ci * 5
+                        while triTable[k] >= 0 {
+                            let i0 = ev[Int(triTable[k])]
+                            let i1 = ev[Int(triTable[k + 1])]
+                            let i2 = ev[Int(triTable[k + 2])]
+                            let o = idx + t * 3
+                            o[0] = i0; o[1] = i1; o[2] = i2
+
+                            let fn = normalTable[n]
+                            let p0 = verts + Int(i0) * 6 + 3
+                            let p1 = verts + Int(i1) * 6 + 3
+                            let p2 = verts + Int(i2) * 6 + 3
+                            p0[0] += fn.x; p0[1] += fn.y; p0[2] += fn.z
+                            p1[0] += fn.x; p1[1] += fn.y; p1[2] += fn.z
+                            p2[0] += fn.x; p2[1] += fn.y; p2[2] += fn.z
+
+                            t += 1; k += 3; n += 1
+                        }
+                    }
+
+                    nX00 += UInt32(mX00.nonzeroBitCount); nX10 += UInt32(mX10.nonzeroBitCount)
+                    nX01 += UInt32(mX01.nonzeroBitCount); nX11 += UInt32(mX11.nonzeroBitCount)
+                    nY0  += UInt32(mY0.nonzeroBitCount);  nY1  += UInt32(mY1.nonzeroBitCount)
+                    nZ0  += UInt32(mZ0.nonzeroBitCount);  nZ1  += UInt32(mZ1.nonzeroBitCount)
+                }
+            }
+        }}}}
+    }
+
+    // MARK: Normals + bounds
+
+    /// Normalises the accumulated vertex normals and returns the mesh bounds.
+    func finishNormals() async -> (SIMD3<Float>, SIMD3<Float>) {
+        guard let verts = vertices else { return (.zero, .zero) }
+        let count     = vertexCount
+        let chunks    = max(1, min(count / 16_384, ProcessInfo.processInfo.activeProcessorCount * 2))
+        let chunkSize = (count + chunks - 1) / chunks
+        let base      = SendablePointer(verts)
+
+        return await withTaskGroup(of: (SIMD3<Float>, SIMD3<Float>).self) { group in
+            var start = 0
+            while start < count {
+                let range = start..<min(start + chunkSize, count)
+                group.addTask {
+                    var lo = SIMD3<Float>(repeating:  .greatestFiniteMagnitude)
+                    var hi = SIMD3<Float>(repeating: -.greatestFiniteMagnitude)
+                    for i in range {
+                        let p = base.pointer + i * 6
+                        let pos = SIMD3<Float>(p[0], p[1], p[2])
+                        lo = simd_min(lo, pos)
+                        hi = simd_max(hi, pos)
+                        let n   = SIMD3<Float>(p[3], p[4], p[5])
+                        let len = simd_length(n)
+                        let u   = len > 0 ? n / len : SIMD3<Float>(0, 0, 1)
+                        p[3] = u.x; p[4] = u.y; p[5] = u.z
+                    }
+                    return (lo, hi)
+                }
+                start = range.upperBound
+            }
+            var lo = SIMD3<Float>(repeating:  .greatestFiniteMagnitude)
+            var hi = SIMD3<Float>(repeating: -.greatestFiniteMagnitude)
+            for await (l, h) in group {
+                lo = simd_min(lo, l)
+                hi = simd_max(hi, h)
+            }
+            return (lo, hi)
+        }
+    }
+
+    /// Hands the buffers over to `Data` (no copy).
+    func makeMeshData(boundsMin: SIMD3<Float>, boundsMax: SIMD3<Float>) -> MeshData {
+        guard let verts = vertices, let idx = indices, !buffersHandedOff else { return .empty }
+        buffersHandedOff = true
+        return MeshData(
+            vertexData: Data(bytesNoCopy: verts,
+                             count: vertexCount * 6 * MemoryLayout<Float>.size,
+                             deallocator: .free),
+            indexData: Data(bytesNoCopy: idx,
+                            count: triangleCount * 3 * MemoryLayout<UInt32>.size,
+                            deallocator: .free),
+            vertexCount: vertexCount,
+            triangleCount: triangleCount,
+            boundsMin: boundsMin,
+            boundsMax: boundsMax
+        )
+    }
+}
+
+nonisolated private struct SendablePointer<T>: @unchecked Sendable {
+    let pointer: UnsafeMutablePointer<T>
+    init(_ pointer: UnsafeMutablePointer<T>) { self.pointer = pointer }
 }

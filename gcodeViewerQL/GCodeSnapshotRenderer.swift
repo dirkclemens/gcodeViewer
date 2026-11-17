@@ -1,28 +1,89 @@
 import SceneKit
 import AppKit
+import simd
 
-/// Renders an SCNGeometry to an NSImage using an offscreen SCNRenderer.
-/// Used by the Quick Look extension to produce a static preview image.
-enum GCodeSnapshotRenderer {
+/// Renders a mesh to a `CGImage` with an offscreen `SCNRenderer`.
+///
+/// Used by the thumbnail extension (Finder icons); the preview extension only
+/// takes `defaultColor` from here (it shows a live `GCodeSCNView` instead).
+/// The image is returned as a `CGImage` so the caller can draw it straight
+/// into the context Quick Look hands it — no PNG encode/decode round trip.
+nonisolated enum GCodeSnapshotRenderer {
 
-    /// Render `geometry` into an image of `size` points at 2× retina scale.
-    nonisolated static func render(geometry: SCNGeometry, size: CGSize) -> NSImage {
-        let scale: CGFloat = 2
-        let pixelSize = CGSize(width: size.width * scale, height: size.height * scale)
+    /// Default object colour for Quick Look (the extensions cannot read the
+    /// app's preferences).
+    static let defaultColor = NSColor(red: 0.75, green: 0.75, blue: 0.80, alpha: 1)
 
-        // ── Scene setup ───────────────────────────────────────────────────────
+    /// Render `mesh` into an image of `pixelSize` pixels.
+    ///
+    /// - Parameters:
+    ///   - background: Clear colour; pass `.clear` for a transparent image
+    ///     (Finder thumbnails).
+    ///   - antialiasing: 4× MSAA for the large preview; thumbnails are
+    ///     downsampled by Finder anyway and can use less.
+    static func render(mesh: MeshData,
+                       color: NSColor = defaultColor,
+                       pixelSize: CGSize,
+                       background: NSColor,
+                       antialiasing: SCNAntialiasingMode = .multisampling4X) -> CGImage? {
+        guard !mesh.isEmpty, pixelSize.width >= 1, pixelSize.height >= 1,
+              let device = MTLCreateSystemDefaultDevice()
+        else { return nil }
+
+        let (scene, cameraNode) = makeScene(mesh: mesh, color: color, background: background,
+                                            aspect: Float(pixelSize.width / pixelSize.height))
+
+        // ── Offscreen render ──────────────────────────────────────────────────
+        // `snapshot` renders with multisampling, resolves, and reads back in
+        // one call (the previous hand-rolled texture path had no antialiasing).
+        let renderer = SCNRenderer(device: device, options: nil)
+        renderer.scene       = scene
+        renderer.pointOfView = cameraNode
+        renderer.autoenablesDefaultLighting = false
+
+        let image = renderer.snapshot(atTime: 0, with: pixelSize, antialiasingMode: antialiasing)
+        var rect  = CGRect(origin: .zero, size: pixelSize)
+        return image.cgImage(forProposedRect: &rect, context: nil, hints: nil)
+    }
+
+    /// Scene with the mesh centred at the origin, a camera fitted to it for
+    /// the given aspect ratio, and the light rig. Returns the camera node.
+    private static func makeScene(mesh: MeshData,
+                          color: NSColor = defaultColor,
+                          background: NSColor,
+                          aspect: Float) -> (SCNScene, SCNNode) {
+        // ── Scene ─────────────────────────────────────────────────────────────
         let scene    = SCNScene()
-        let meshNode = SCNNode(geometry: geometry)
-
-        // Centre the mesh at the origin (same logic as the main app).
-        let (minB, maxB) = meshNode.boundingBox
-        let cx = (minB.x + maxB.x) / 2
-        let cy = (minB.y + maxB.y) / 2
-        let cz = (minB.z + maxB.z) / 2
-        meshNode.pivot = SCNMatrix4MakeTranslation(cx, cy, cz)
+        scene.background.contents = background
+        let meshNode = SCNNode(geometry: mesh.makeGeometry(color: color))
+        let centre   = (mesh.boundsMin + mesh.boundsMax) * 0.5
+        meshNode.simdPosition = -centre          // centre the mesh at the origin
         scene.rootNode.addChildNode(meshNode)
 
-        // ── Lights ────────────────────────────────────────────────────────────
+        // ── Camera ────────────────────────────────────────────────────────────
+        // Three-quarter view from the front-left, slightly above; +Z is up as
+        // on the print bed. The distance is fitted to the bounding box
+        // corners rather than the bounding sphere, so the object fills the
+        // image instead of floating in a lot of empty space.
+        let camera     = SCNCamera()
+        camera.fieldOfView = 30
+        camera.projectionDirection = .vertical
+        let cameraNode = SCNNode()
+        cameraNode.camera = camera
+
+        let viewDir  = simd_normalize(SIMD3<Float>(-0.55, -0.75, 0.5))   // centre → camera
+        let distance = fittedDistance(halfExtent: (mesh.boundsMax - mesh.boundsMin) * 0.5,
+                                      viewDir: viewDir,
+                                      fovY: Float(camera.fieldOfView) * .pi / 180,
+                                      aspect: aspect) * 1.06          // small margin
+        cameraNode.simdPosition = viewDir * distance
+        cameraNode.simdLook(at: .zero, up: SIMD3<Float>(0, 0, 1), localFront: SCNNode.simdLocalFront)
+        let radius     = simd_length(mesh.boundsMax - mesh.boundsMin) * 0.5
+        camera.zNear   = Double(max(distance - radius * 1.1, distance * 0.01))
+        camera.zFar    = Double(distance + radius * 1.1)
+        scene.rootNode.addChildNode(cameraNode)
+
+        // ── Lights (attached to the camera, same rig as the main app) ─────────
         let ambient = SCNLight()
         ambient.type      = .ambient
         ambient.intensity = 200
@@ -33,8 +94,8 @@ enum GCodeSnapshotRenderer {
         key.type      = .directional
         key.intensity = 900
         let keyNode   = SCNNode(); keyNode.light = key
-        keyNode.eulerAngles = SCNVector3(-Float.pi / 5, Float.pi / 4, 0)
-        scene.rootNode.addChildNode(keyNode)
+        keyNode.eulerAngles = SCNVector3(-Float.pi / 5, Float.pi / 6, 0)
+        cameraNode.addChildNode(keyNode)
 
         let fill = SCNLight()
         fill.type      = .directional
@@ -42,109 +103,37 @@ enum GCodeSnapshotRenderer {
         fill.color     = NSColor(white: 0.8, alpha: 1)
         let fillNode   = SCNNode(); fillNode.light = fill
         fillNode.eulerAngles = SCNVector3(0, -Float.pi / 2, 0)
-        scene.rootNode.addChildNode(fillNode)
+        cameraNode.addChildNode(fillNode)
 
-        // ── Camera ────────────────────────────────────────────────────────────
-        let dx       = Float(maxB.x - minB.x)
-        let dy       = Float(maxB.y - minB.y)
-        let dz       = Float(maxB.z - minB.z)
-        let radius   = sqrt(dx*dx + dy*dy + dz*dz) / 2
-        let distance = radius * 2.5
+        return (scene, cameraNode)
+    }
 
-        let camera       = SCNCamera()
-        camera.zNear     = Double(radius) * 0.001
-        camera.zFar      = Double(radius) * 20
-        let cameraNode   = SCNNode()
-        cameraNode.camera = camera
+    /// Smallest camera distance at which all eight corners of a box with
+    /// `halfExtent`, centred at the origin, lie inside the view frustum when
+    /// looking from direction `viewDir` (Z up).
+    private static func fittedDistance(halfExtent h: SIMD3<Float>,
+                                       viewDir: SIMD3<Float>,
+                                       fovY: Float,
+                                       aspect: Float) -> Float {
+        let right = simd_normalize(simd_cross(-viewDir, SIMD3<Float>(0, 0, 1)))
+        let up    = simd_cross(right, -viewDir)
+        let tanY  = tan(fovY * 0.5)
+        let tanX  = tanY * aspect
 
-        // Isometric-ish angle: front-left-above
-        let angle: Float = .pi / 6         // 30°
-        cameraNode.position = SCNVector3(
-            -distance * sin(angle),
-             distance * 0.4,
-             distance * cos(angle)
-        )
-        cameraNode.look(at: SCNVector3Zero)
-        scene.rootNode.addChildNode(cameraNode)
-
-        // ── Offscreen renderer ────────────────────────────────────────────────
-        guard let device = MTLCreateSystemDefaultDevice() else {
-            return NSImage(size: size)   // fallback blank image
+        var distance: Float = 0.001
+        for sx in [-1, 1] as [Float] {
+            for sy in [-1, 1] as [Float] {
+                for sz in [-1, 1] as [Float] {
+                    let p = h * SIMD3(sx, sy, sz)
+                    // Depth from the camera is (distance − p·viewDir); the corner
+                    // fits when its lateral offset ≤ tan(fov/2) · depth.
+                    let towards = simd_dot(p, viewDir)
+                    distance = max(distance,
+                                   towards + abs(simd_dot(p, right)) / tanX,
+                                   towards + abs(simd_dot(p, up))    / tanY)
+                }
+            }
         }
-        let renderer          = SCNRenderer(device: device, options: nil)
-        renderer.scene        = scene
-        renderer.pointOfView  = cameraNode
-        renderer.autoenablesDefaultLighting = false
-
-        // Create a Metal texture to render into.
-        let descriptor               = MTLTextureDescriptor.texture2DDescriptor(
-            pixelFormat: .rgba8Unorm,
-            width:  Int(pixelSize.width),
-            height: Int(pixelSize.height),
-            mipmapped: false
-        )
-        descriptor.usage             = [.renderTarget, .shaderRead]
-        descriptor.storageMode       = .shared
-
-        guard let texture = device.makeTexture(descriptor: descriptor) else {
-            return NSImage(size: size)
-        }
-
-        let renderPassDescriptor                            = MTLRenderPassDescriptor()
-        renderPassDescriptor.colorAttachments[0].texture   = texture
-        renderPassDescriptor.colorAttachments[0].loadAction  = .clear
-        renderPassDescriptor.colorAttachments[0].storeAction = .store
-        renderPassDescriptor.colorAttachments[0].clearColor =
-            MTLClearColor(red: 0.12, green: 0.12, blue: 0.13, alpha: 1)
-
-        guard let commandQueue  = device.makeCommandQueue(),
-              let commandBuffer = commandQueue.makeCommandBuffer()
-        else {
-            return NSImage(size: size)
-        }
-
-        renderer.render(
-            atTime: 0,
-            viewport: CGRect(origin: .zero, size: pixelSize),
-            commandBuffer: commandBuffer,
-            passDescriptor: renderPassDescriptor
-        )
-        commandBuffer.commit()
-        commandBuffer.waitUntilCompleted()
-
-        // ── Texture → NSImage ─────────────────────────────────────────────────
-        let bytesPerRow  = Int(pixelSize.width) * 4
-        var rawBytes     = [UInt8](repeating: 0, count: bytesPerRow * Int(pixelSize.height))
-        texture.getBytes(
-            &rawBytes,
-            bytesPerRow: bytesPerRow,
-            from: MTLRegion(
-                origin: MTLOrigin(x: 0, y: 0, z: 0),
-                size:   MTLSize(width: Int(pixelSize.width),
-                                height: Int(pixelSize.height), depth: 1)
-            ),
-            mipmapLevel: 0
-        )
-
-        guard let colorSpace = CGColorSpace(name: CGColorSpace.sRGB),
-              let context    = CGContext(
-                  data: &rawBytes,
-                  width:            Int(pixelSize.width),
-                  height:           Int(pixelSize.height),
-                  bitsPerComponent: 8,
-                  bytesPerRow:      bytesPerRow,
-                  space:            colorSpace,
-                  bitmapInfo:       CGImageAlphaInfo.premultipliedLast.rawValue
-              ),
-              let cgImage = context.makeImage()
-        else {
-            return NSImage(size: size)
-        }
-
-        let nsImage = NSImage(size: size)
-        nsImage.addRepresentation(
-            NSBitmapImageRep(cgImage: cgImage)
-        )
-        return nsImage
+        return distance
     }
 }

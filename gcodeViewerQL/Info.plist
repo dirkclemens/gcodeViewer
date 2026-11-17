@@ -31,13 +31,11 @@
 			</array>
 			<key>QLSupportsSearchableItems</key>
 			<false/>
-			<key>QLIsDataBasedPreview</key>
-			<true/>
 		</dict>
 		<key>NSExtensionPointIdentifier</key>
 		<string>com.apple.quicklook.preview</string>
 		<key>NSExtensionPrincipalClass</key>
-		<string>$(PRODUCT_MODULE_NAME).PreviewProvider</string>
+		<string>$(PRODUCT_MODULE_NAME).PreviewViewController</string>
 	</dict>
 </dict>
 </plist>
